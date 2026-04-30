@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manday Cost Chatbot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="chatbot_frontend.css">
+</head>
+<body>
+
+<header class="header">
+  <div class="header-left">
+    <div class="logo">MD</div>
+    <div class="header-title">
+      <h1>Manday Cost Chatbot</h1>
+      <p>คำนวณต้นทุนผ่าน AI · LLaMA 3 8B local</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <button class="btn-reset" onclick="resetChat()">🔄 เริ่มใหม่</button>
+    <div class="badge-v">v1.2</div>
+  </div>
+</header>
+
+<div class="port-banner" id="portBanner">
+  ⚠️ เชื่อมต่อ server ไม่ได้ — ตรวจสอบว่า
+  <code style="background:rgba(0,0,0,.08);padding:1px 5px;border-radius:3px">python main.py</code>
+  กำลังรันอยู่ และเปิดหน้านี้จาก <strong id="correctUrl"></strong>
+</div>
+
+<div class="app-body">
+  <aside class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-title">ข้อมูลที่รวบรวมได้</div>
+      <div class="progress-steps" id="progressSteps"></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-title">ตัวอย่าง</div>
+      <div class="chips">
+        <div class="chip" onclick="sendExample('ชื่อผู้ขอ สมชาย ใจดี โครงการ ERP ลูกค้า ABC markup 15%\n\nPrepare:\n- หัวข้อ: Requirement Workshop\n  คน: 1\n  ครั้ง: 1\n  วัน/ครั้ง: 2\n  Rate: 4500\n\nImplement:\n- หัวข้อ: Setup ระบบ\n  คน: 2\n  ครั้ง: 2\n  วัน/ครั้ง: 4\n  Rate: 4500\n- หัวข้อ: Training\n  คน: 1\n  ครั้ง: 1\n  วัน/ครั้ง: 2\n  Rate: 4500\n\nService:\n- หัวข้อ: Support หลัง Go-live\n  คน: 1\n  ครั้ง: 1\n  วัน/ครั้ง: 3\n  Rate: 3500')">📦 ERP 3 Phase</div>
+        <div class="chip" onclick="sendExample('markup 20%')">💰 Markup</div>
+        <div class="chip" onclick="sendExample('ค่าโรงแรม 1200 บาทต่อวัน')">🏨 โรงแรม</div>
+        <div class="chip" onclick="sendExample('support รายปี 180000 บาท')">🔧 Support</div>
+      </div>
+    </div>
+
+    <div class="result-panel">
+      <div class="r-title">ผลการคำนวณ</div>
+      <div class="result-placeholder" id="resultPlaceholder">
+        <div class="icon">📊</div>
+        <div>กรอกข้อมูลครบแล้ว<br>ผลลัพธ์จะปรากฏที่นี่</div>
+      </div>
+      <div id="resultRows" style="display:none"></div>
+
+      <div class="export-group" id="exportGroup" style="display:none">
+        <div class="export-group-title">📤 ดาวน์โหลดรายงาน</div>
+        <button class="btn-export excel" id="btnExcel" onclick="exportFile('excel')">
+          <span class="icon-badge">📊</span>
+          Export Excel (.xlsx)
+        </button>
+        <button class="btn-export pdf" id="btnPdf" onclick="exportFile('pdf')">
+          <span class="icon-badge">📄</span>
+          Export PDF (.pdf)
+        </button>
+        <div class="export-hint">รายงานพร้อมข้อมูลผู้จัดทำ &amp; วันที่</div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="chat-area">
+    <div class="messages-wrap" id="messagesWrap">
+      <div class="welcome" id="welcomeScreen">
+        <div class="welcome-icon">🤖</div>
+        <h2>สวัสดีครับ!</h2>
+        <p>เริ่มต้นด้วยการบอก <strong>ชื่อผู้ขอ</strong> รายละเอียดโครงการ และหัวเรื่องย่อยในแต่ละ phase แล้วผมจะรวมราคาของแต่ละหัวเรื่องเป็นราคารวมของ phase ให้ทันที</p>
+        <div class="welcome-examples">
+          <button class="example-btn" onclick="sendExample('ชื่อผู้ขอ สมชาย ใจดี โครงการ ERP ลูกค้า ABC markup 15%\n\nPrepare:\n- หัวข้อ: Requirement Workshop\n  คน: 1\n  ครั้ง: 1\n  วัน/ครั้ง: 2\n  Rate: 4500\n\nImplement:\n- หัวข้อ: Setup ระบบ\n  คน: 2\n  ครั้ง: 2\n  วัน/ครั้ง: 4\n  Rate: 4500\n- หัวข้อ: Training\n  คน: 1\n  ครั้ง: 1\n  วัน/ครั้ง: 2\n  Rate: 4500\n\nService:\n- หัวข้อ: Support หลัง Go-live\n  คน: 1\n  ครั้ง: 1\n  วัน/ครั้ง: 3\n  Rate: 3500')">
+            <span class="ex-icon">⚡</span><span>สมชาย ใจดี / ERP ลูกค้า ABC · หัวเรื่องย่อยในแต่ละ phase</span>
+          </button>
+          <button class="example-btn" onclick="sendExample('โครงการ HRM ชื่อผู้จัดทำ วิภา แสงทอง markup 20% Prepare 1 คน 1 ครั้ง 1 วัน rate 3500 Implement 2 คน 3 ครั้ง 3 วัน rate 3500 Service 1 คน 1 ครั้ง 2 วัน rate 3000')">
+            <span class="ex-icon">💼</span><span>วิภา แสงทอง / HRM · 3 phase + กำไรหลังรวม 20%</span>
+          </button>
+          <button class="example-btn" onclick="sendExample('ต้องการคำนวณค่าใช้จ่ายโครงการ')">
+            <span class="ex-icon">🧮</span><span>เริ่มต้นคำนวณค่าใช้จ่ายโครงการใหม่</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-bar">
+      <div class="input-wrap">
+        <textarea id="chatInput" rows="1"
+          placeholder="พิมพ์ชื่อผู้ขอ / ข้อมูลโครงการ หรือตอบคำถามที่ AI ถาม..."
+          onkeydown="handleKey(event)"
+          oninput="autoResize(this)"></textarea>
+      </div>
+      <button class="btn-send" id="sendBtn" onclick="sendMessage()">
+        <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="chatbot_frontend.js"></script>
+</body>
+</html>

@@ -1,0 +1,196 @@
+"""
+prompts.py — Prompt engineering & reply builder
+"""
+
+import json
+from model import CostState
+
+
+SYSTEM_PROMPT = """You are a Thai assistant for a Manday Cost Calculator.
+Respond ONLY with valid JSON. No markdown. No extra text.
+
+Response format:
+{
+  "actions": [
+    {"intent": "...", "target": "...", "payload": {...}},
+    ...
+  ],
+  "reply": "Thai reply 1-2 sentences"
+}
+
+ACTIONS — include ALL actions needed to fulfill the user's message:
+
+1. {"intent":"add","target":"phase_item","payload":{...}}
+   payload: {"phase":"...","title":"...","person":n,"times":n,"days":n,"rate":n,"rate_source":"user|inferred"}
+   - rate_source="user"     → user พูดตัวเลข rate ชัดเจนใน turn นี้
+   - rate_source="inferred" → LLM เดาเอง / copy จาก item อื่น
+   - If rate_source would be "inferred" → omit rate entirely, do not include it
+
+2. {"intent":"delete","target":"phase_item","payload":{"phase":"...","title":"..."}}
+   - If user says "ลบทั้งหมดใน phase X" → one delete action per existing item in that phase
+   - Check [CURRENT STATE].phases to know which items exist
+
+3. {"intent":"edit","target":"phase_item","payload":{"phase":"...","title":"...",...changed fields only...}}
+
+4. {"intent":"set","target":"scalar","payload":{"field":"requester_name|project_name|markup_pct|fuel|hotel|allowance|flight|rental|taxi|travel_allow","value":...}}
+   - One action per scalar field
+
+5. {"intent":"query","target":"-","payload":{}}
+
+PHASE MAPPING:
+- prepare   = Prepare / เตรียมงาน
+- implement = Implement / ติดตั้ง / ทำระบบ
+- service   = Service / Support / MA / บำรุงรักษา
+
+RULES:
+- Phase items are OPTIONAL — user can have 0 items in any phase, result will show 0 for that phase
+- Only 3 fields required to show result: requester_name, project_name, markup_pct
+- Show result immediately once those 3 are collected — do not wait for phase items
+- NEVER invent numbers not stated by user
+- NEVER add rate if user didn't mention it — omit rate field entirely
+- NEVER copy rate from other items — each item's rate must be explicitly stated this turn
+- actions array must cover EVERY piece of info the user gave
+- reply: confirm what changed, 1-2 sentences Thai, no need to ask for phase items
+- Convert Thai numbers: หนึ่ง=1, สอง=2, สาม=3 etc.
+- "ชื่อผู้ขอ" = "ผู้จัดทำ" = "จัดทำโดย" = "requester_name" — same field
+- Check [CURRENT STATE] before asking — if field already exists, do not ask again"""
+
+
+def state_context(state: CostState) -> str:
+    d = state.data
+    missing = state.missing_required()
+    items = d.get("phase_items", [])
+
+    phase_summary = {}
+    for item in items:
+        p = item.get("phase", "?")
+        missing_fields = []
+        if not item.get("person") and item.get("person") != 0:
+            missing_fields.append("person")
+        if not item.get("times"):
+            missing_fields.append("times")
+        if not item.get("days"):
+            missing_fields.append("days")
+        if not item.get("rate") and not item.get("cost"):
+            missing_fields.append("rate")
+        phase_summary.setdefault(p, []).append({
+            "title":          item.get("title"),
+            "rate":           item.get("rate"),
+            "missing_fields": missing_fields,  # ← บอก LLM ชัดๆ
+        })
+
+    waiting_rate = [
+        {"phase": i["phase"], "title": i["title"]}
+        for i in items
+        if not i.get("rate") and not i.get("cost")
+    ]
+
+    ctx = {
+        "collected": {
+            "requester_name": d.get("requester_name"),
+            "project_name":   d.get("project_name"),
+            "markup_pct":     d.get("markup_pct"),
+        },
+        "phases":          phase_summary,
+        "missing":         [label for _, label in missing],
+        "waiting_for_rate": waiting_rate,
+        "is_complete":     state.is_complete(),
+    }
+    return (
+        f"\n\n[CURRENT STATE]: {json.dumps(ctx, ensure_ascii=False)}"
+        "\n[REMINDER]: JSON only. No Markdown."
+        "\n[CRITICAL]: Do NOT copy rate from existing items. Only use rate if user stated it THIS turn."
+        "\n[CRITICAL]: If waiting_for_rate is not empty and user gives a rate → intent=edit target=phase_item"
+    )
+
+
+def build_messages(state: CostState, user_message: str) -> list:
+    msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
+    recent = state.history[-12:] if len(state.history) > 12 else state.history
+    msgs.extend(recent)
+    msgs.append({"role": "user", "content": user_message + state_context(state)})
+    return msgs
+
+
+def build_reply(state: CostState, llm_data: dict) -> str:
+    llm_reply = llm_data.get("reply", "").strip()
+
+    # 1. items ที่ขาด field บางอย่าง
+    incomplete = []
+    for i in state.data.get("phase_items", []):
+        missing_fields = []
+        if not i.get("person") and i.get("person") != 0:
+            missing_fields.append("คน")
+        if not i.get("times"):
+            missing_fields.append("ครั้ง")
+        if not i.get("days"):
+            missing_fields.append("วัน/ครั้ง")
+        if not i.get("rate") and not i.get("cost"):
+            missing_fields.append("Rate")
+        if missing_fields:
+            incomplete.append((i["title"], i["phase"], missing_fields))
+
+    if incomplete:
+        title, phase, fields = incomplete[0]  # ถามทีละ item
+        fields_str = ", ".join(fields)
+        prefix = f"{llm_reply}\n\n" if llm_reply else ""
+        return (
+            f"{prefix}"
+            f"⚠️ **{title}** ({phase}) ยังขาด: {fields_str} ครับ\n"
+            f"กรุณาระบุ {fields_str} สำหรับ {title}?"
+        )
+
+    # 2. scalar fields ที่ขาด
+    missing = state.missing_required()
+    scalar_missing = [(k, l) for k, l in missing if not k.endswith("_items")]
+    if scalar_missing:
+        key, label = scalar_missing[0]  # ถามทีละ field
+        prefix = f"{llm_reply}\n\n" if llm_reply else ""
+        return f"{prefix}📝 ยังขาด **{label}** ครับ — กรุณาระบุ?"
+
+    # 3. ครบแล้ว
+    if state.is_complete():
+        prefix = f"{llm_reply}\n\n" if llm_reply else ""
+        return prefix + format_result(state.calculate())
+
+    # 4. fallback ใช้ LLM reply
+    return llm_reply or "มีข้อมูลอะไรเพิ่มเติมไหมครับ?"
+
+
+def format_result(r: dict) -> str:
+    def baht(n): return f"฿{n:,.0f}"
+
+    lines = [
+        f"## 🎯 ผลการคำนวณ — {r['project_name']}",
+        f"*จัดทำโดย: {r['requester_name']}*",
+        "",
+        "| รายการ | มูลค่า |",
+        "|---|---|",
+        f"| Manday รวม | {r['manday']:,.0f} วัน |",
+        f"| Prepare Phase | {phase_summary(r['phase_costs'][0])} |",
+        f"| Implement Phase | {phase_summary(r['phase_costs'][1])} |",
+        f"| Service Phase | {phase_summary(r['phase_costs'][2])} |",
+        f"| **รวมต้นทุน 3 Phase** | **{baht(r.get('subtotal_cost', 0))}** |",
+        f"| Markup / กำไร {r['markup_pct']}% | {baht(r.get('profit', 0))} |",
+        f"| 🏆 **ยอดรวมทั้งหมด** | 🏆 **{baht(r['total'])}** |",
+        "",
+        "| Phase | หัวเรื่อง | Manday | ต้นทุน |",
+        "|---|---|---:|---:|",
+    ]
+    for phase in r["phase_costs"]:
+        for item in phase.get("items", []):
+            lines.append(
+                f"| {phase['label']} | {item['title']} | {item['manday']:,.0f} | {baht(item['cost'])} |"
+            )
+    lines += [
+        "",
+        "---",
+        "💡 แก้ไขตัวเลขหรือเพิ่มค่าเดินทางได้เลยครับ",
+        "📊 กด **Export Excel** หรือ **Export PDF** เพื่อดาวน์โหลดรายงาน",
+    ]
+    return "\n".join(lines)
+
+
+def phase_summary(p: dict) -> str:
+    def baht(n): return f"฿{n:,.0f}"
+    return f"{len(p.get('items', []))} หัวข้อ / {p['manday']:,.0f} manday = {baht(p['cost'])}"
