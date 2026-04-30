@@ -6,6 +6,7 @@ models.py — Data models
 
 from typing import Optional
 from pydantic import BaseModel
+import math
 
 
 # ── Session state ─────────────────────────────────────────────
@@ -124,9 +125,8 @@ class CostState:
         service_cost = phase_costs[2]["cost"]
         subtotal_cost    = prepare_cost + implement_cost + service_cost
         profit           = subtotal_cost * markup
-        total            = subtotal_cost + profit
         service_pct      = (service_cost / subtotal_cost * 100) if subtotal_cost > 0 else 0
-        travel_cost      = travel_per_unit * total_manday
+        total = subtotal_cost + profit
 
         return {
             "requester_name": d.get("requester_name", "—"),
@@ -138,7 +138,6 @@ class CostState:
             "markup_pct":     d.get("markup_pct", 0),
             "manday":         total_manday,
             "base_cost":      round(subtotal_cost),
-            "travel_cost":    round(travel_cost),
             "prepare_cost":   round(prepare_cost),
             "impl_cost":      round(implement_cost),
             "implement_cost": round(implement_cost),
@@ -182,21 +181,52 @@ class CostState:
         calculated = []
         for i, item in enumerate(items, 1):
             person = float(item.get("person", 0) or 0)
-            times = float(item.get("times", 1) or 1)
-            days = float(item.get("days", 1) or 1)
-            rate = float(item.get("rate", 0) or 0)
+            times  = float(item.get("times", 1) or 1)
+            days   = float(item.get("days", 1) or 1)
+            rate   = float(item.get("rate", 0) or 0)
             manday = person * times * days
-            cost = item.get("cost")
-            cost = float(cost) if cost not in (None, "") else manday * rate
+            cost   = item.get("cost")
+
+            rt = math.ceil(times)
+            rd = math.ceil(days)
+
+            fuel         = float(item.get("fuel", 0) or 0)
+            hotel        = float(item.get("hotel", 0) or 0)
+            allowance    = float(item.get("allowance", 0) or 0)
+            flight       = float(item.get("flight", 0) or 0)
+            rental       = float(item.get("rental", 0) or 0)
+            taxi         = float(item.get("taxi", 0) or 0)
+            travel_allow = float(item.get("travel_allow", 0) or 0)
+
+            travel = (
+                fuel         * rt +
+                hotel        * rt * rd +
+                allowance    * person * rt * rd +
+                flight       * person * times +
+                rental       * days +
+                taxi +
+                travel_allow * person * times
+            )
+
+            cost = float(cost) if cost not in (None, "") else math.ceil((manday * rate) + travel)
+
             calculated.append({
-                "phase": phase,
-                "title": item.get("title") or f"{self.PHASES[phase]} item {i}",
-                "person": person,
-                "times": times,
-                "days": days,
-                "rate": rate,
-                "manday": manday,
-                "cost": round(cost),
+                "phase":   phase,
+                "title":   item.get("title") or f"{self.PHASES[phase]} item {i}",
+                "person":  person,
+                "times":   times,
+                "days":    days,
+                "rate":    rate,
+                "manday":  manday,
+                "cost":    round(cost),
+                "travel":  round(travel),
+                "fuel":         float(item.get("fuel", 0) or 0),
+                "hotel":        float(item.get("hotel", 0) or 0),
+                "allowance":    float(item.get("allowance", 0) or 0),
+                "flight":       float(item.get("flight", 0) or 0),
+                "rental":       float(item.get("rental", 0) or 0),
+                "taxi":         float(item.get("taxi", 0) or 0),
+                "travel_allow": float(item.get("travel_allow", 0) or 0),
             })
         return calculated
 

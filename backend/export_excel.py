@@ -159,6 +159,16 @@ def generate_excel(result: dict) -> bytes:
             if c > 1:
                 cell.number_format = "#,##0"
         row += 1
+        travel_fields = [
+            ("fuel",         "ค่าน้ำมัน"),
+            ("hotel",        "ค่าโรงแรม"),
+            ("allowance",    "เบี้ยเลี้ยง"),
+            ("flight",       "ค่าเครื่องบิน"),
+            ("rental",       "ค่าเช่ารถ"),
+            ("taxi",         "ค่า Taxi"),
+            ("travel_allow", "เบี้ยเดินทาง"),
+        ]
+
         for item in phase.get("items", []):
             values = [item["title"], item["person"], item["times"], item["days"], item["rate"], item["cost"]]
             for c, val in enumerate(values, 1):
@@ -171,6 +181,25 @@ def generate_excel(result: dict) -> bytes:
                     cell.number_format = "#,##0"
             row += 1
 
+            # ── travel detail rows ──
+            for field, label in travel_fields:
+                val = float(item.get(field, 0) or 0)
+                if val > 0:
+                    ws.cell(row, 1, f"    └ {label}").font = Font(name="Arial", size=9, color="64748B", italic=True)
+                    ws.cell(row, 1).fill = fill(WHITE)
+                    ws.cell(row, 1).border = border()
+                    for c in range(2, 6):
+                        ws.cell(row, c).fill = fill(WHITE)
+                        ws.cell(row, c).border = border()
+                    cell = ws.cell(row, 6, val)
+                    cell.fill = fill(WHITE)
+                    cell.border = border()
+                    cell.font = Font(name="Arial Narrow", size=9, color="64748B", italic=True)
+                    cell.number_format = "#,##0"
+                    cell.alignment = Alignment(horizontal="right")
+                    ws.row_dimensions[row].height = 14
+                    row += 1
+
     total_row(row, "รวมต้นทุน 3 Phase", result.get("subtotal_cost", 0), MID_BLUE, LIGHT_BLUE)
     ws.cell(row, 2).font = Font(name="Arial Narrow", bold=True, size=12, color=MID_BLUE)
     row += 2
@@ -181,27 +210,6 @@ def generate_excel(result: dict) -> bytes:
     row += 1
     data_row(row, f"กำไรหลังรวม 3 Phase ({result['markup_pct']}%)", result.get("profit", 0), "number", LIGHT_BLUE)
     ws.cell(row, 2).font = Font(name="Arial Narrow", bold=True, size=12, color=GREEN)
-
-    # ── Section 3: ค่าเดินทาง ──────────────────────────────────
-    td = result.get("travel_detail", {})
-    travel_items = [
-        (k, v) for k, v in [
-            ("ค่าน้ำมัน",    td.get("fuel", 0)),
-            ("ค่าโรงแรม",    td.get("hotel", 0)),
-            ("เบี้ยเลี้ยง",   td.get("allowance", 0)),
-            ("ค่าเครื่องบิน", td.get("flight", 0)),
-            ("ค่าเช่ารถ",    td.get("rental", 0)),
-            ("ค่า Taxi",     td.get("taxi", 0)),
-            ("เบี้ยเดินทาง", td.get("travel_allow", 0)),
-        ] if v > 0
-    ]
-    row += 1
-    if travel_items:
-        section_header(row, "✈️  รายละเอียดค่าเดินทาง (ต่อหน่วย)")
-        row += 1
-        for label, val in travel_items:
-            data_row(row, label, val, "number")
-            row += 1
 
     # ── Grand total ────────────────────────────────────────────
     ws.merge_cells(f"A{row}:F{row}")

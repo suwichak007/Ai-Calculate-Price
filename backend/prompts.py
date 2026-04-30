@@ -21,7 +21,9 @@ Response format:
 ACTIONS — include ALL actions needed to fulfill the user's message:
 
 1. {"intent":"add","target":"phase_item","payload":{...}}
-   payload: {"phase":"...","title":"...","person":n,"times":n,"days":n,"rate":n,"rate_source":"user|inferred"}
+   payload: {"phase":"...","title":"...","person":n,"times":n,"days":n,"rate":n,"rate_source":"user|inferred","fuel":n,"hotel":n,"allowance":n,"flight":n,"rental":n,"taxi":n,"travel_allow":n}
+   - ค่าเดินทางต่อ item เป็น optional — parse เฉพาะที่ user ระบุมาเท่านั้น
+   - ห้ามคิด cost เอง — Python จะคำนวณเอง
    - rate_source="user"     → user พูดตัวเลข rate ชัดเจนใน turn นี้
    - rate_source="inferred" → LLM เดาเอง / copy จาก item อื่น
    - If rate_source would be "inferred" → omit rate entirely, do not include it
@@ -32,8 +34,14 @@ ACTIONS — include ALL actions needed to fulfill the user's message:
 
 3. {"intent":"edit","target":"phase_item","payload":{"phase":"...","title":"...",...changed fields only...}}
 
-4. {"intent":"set","target":"scalar","payload":{"field":"requester_name|project_name|markup_pct|fuel|hotel|allowance|flight|rental|taxi|travel_allow","value":...}}
+4. {"intent":"set","target":"scalar","payload":{"field":"requester_name|project_name|markup_pct","value":...}}
    - One action per scalar field
+   - ห้าม set fuel|hotel|allowance|flight|rental|taxi|travel_allow เป็น scalar
+   - ค่าเดินทางต้องระบุต่อ item เท่านั้น ผ่าน intent=edit target=phase_item
+    - ค่าเดินทาง (hotel/fuel/allowance/flight/rental/taxi/travel_allow) ต้องระบุต่อ item เท่านั้น
+    - ถ้า user บอกค่าเดินทางโดยไม่ระบุชื่อ item ชัดเจน → actions MUST be [] (ห้าม edit ใดๆ ทั้งสิ้น) และ reply ถามกลับโดยแสดงรายชื่อ item ทั้งหมดจาก [CURRENT STATE].phases ให้ user เลือก
+    - ห้าม assume ว่า user ต้องการทุก item — ต้องให้ user ระบุเองเสมอ
+    - เฉพาะเมื่อ user พูดชื่อ item ชัดเจนในข้อความ เช่น "Setup ระบบ ค่าโรงแรม 1200" หรือตอบกลับคำถามด้วยชื่อ item → จึง edit ได้
 
 5. {"intent":"query","target":"-","payload":{}}
 
@@ -53,7 +61,14 @@ RULES:
 - reply: confirm what changed, 1-2 sentences Thai, no need to ask for phase items
 - Convert Thai numbers: หนึ่ง=1, สอง=2, สาม=3 etc.
 - "ชื่อผู้ขอ" = "ผู้จัดทำ" = "จัดทำโดย" = "requester_name" — same field
-- Check [CURRENT STATE] before asking — if field already exists, do not ask again"""
+- Check [CURRENT STATE] before asking — if field already exists, do not ask again
+- ถ้า user บอกค่าเดินทาง (hotel/fuel/allowance/flight/rental/taxi/travel_allow) โดยไม่ระบุ item
+  → ห้าม set เป็น scalar
+  → ให้ reply ถามกลับว่า "ค่าโรงแรม 1200 บาท ใช้กับหัวข้อไหนบ้างครับ?" พร้อมแสดงรายการ item ที่มีอยู่
+  → actions: [] (ยังไม่ต้องทำอะไร รอ user ตอบก่อน)
+
+- ถ้า user ระบุ item ชัดเจน เช่น "Setup ระบบ ค่าโรงแรม 1200"
+  → intent=edit, target=phase_item, payload={"phase":"implement","title":"Setup ระบบ","hotel":1200}"""
 
 
 def state_context(state: CostState) -> str:
@@ -172,6 +187,7 @@ def format_result(r: dict) -> str:
         f"| Service Phase | {phase_summary(r['phase_costs'][2])} |",
         f"| **รวมต้นทุน 3 Phase** | **{baht(r.get('subtotal_cost', 0))}** |",
         f"| Markup / กำไร {r['markup_pct']}% | {baht(r.get('profit', 0))} |",
+        f"| ค่าเดินทางรวม | {baht(r.get('travel_cost', 0))} |",
         f"| 🏆 **ยอดรวมทั้งหมด** | 🏆 **{baht(r['total'])}** |",
         "",
         "| Phase | หัวเรื่อง | Manday | ต้นทุน |",

@@ -85,7 +85,9 @@ def _apply_single_action(state: CostState, action: dict):
         title = str(payload.get("title", "")).strip().lower()
         for item in state.data.get("phase_items", []):
             if item["phase"] == phase and item["title"].strip().lower() == title:
-                for k in ("person", "times", "days", "rate", "cost"):
+                for k in ("person", "times", "days", "rate", "cost",
+                          "fuel", "hotel", "allowance", "flight",
+                          "rental", "taxi", "travel_allow"):
                     if k in payload:
                         item[k] = payload[k]
 

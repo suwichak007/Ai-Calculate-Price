@@ -227,6 +227,12 @@ def generate_pdf(result: dict) -> bytes:
         story.append(section_tbl(travel_items, header="✈️  รายละเอียดค่าเดินทาง (ต่อหน่วย)"))
         story.append(Spacer(1, 4*mm))
 
+    if result.get("travel_cost", 0) > 0:
+        story.append(section_tbl([
+            ("ค่าเดินทางรวม (travel × manday รวม)", baht(result["travel_cost"]), LIGHT_BLUE),
+        ]))
+        story.append(Spacer(1, 4*mm))
+
     # ── Grand total ────────────────────────────────────────────
     total_data = [[
         Paragraph(
