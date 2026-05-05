@@ -25,7 +25,7 @@ async def startup_event():
     set_llm(llm)
 
 if __name__ == "__main__":
-    PORT = 8070
+    PORT = 8060
     print("\n" + "="*50)
     print(f"  Manday Cost Chatbot v1.2")
     print(f"  http://localhost:{PORT}")

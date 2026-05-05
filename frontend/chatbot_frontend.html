@@ -15,12 +15,12 @@
     <div class="logo">MD</div>
     <div class="header-title">
       <h1>Manday Cost Chatbot</h1>
-      <p>คำนวณต้นทุนผ่าน AI · LLaMA 3 8B local</p>
+      <p>คำนวณต้นทุนผ่าน AI</p>
     </div>
   </div>
   <div class="header-right">
     <button class="btn-reset" onclick="resetChat()">🔄 เริ่มใหม่</button>
-    <div class="badge-v">v1.2</div>
+    <div class="badge-v">v1.3</div>
   </div>
 </header>
 
@@ -32,10 +32,34 @@
 
 <div class="app-body">
   <aside class="sidebar">
+
+    <!-- ── Upload Zone ─────────────────────────────────────── -->
+    <div class="sidebar-section upload-section">
+      <div class="sidebar-title">📂 นำเข้าจาก Excel</div>
+
+      <div class="upload-drop-zone" id="uploadDropZone"
+           ondragover="handleDragOver(event)"
+           ondragleave="handleDragLeave(event)"
+           ondrop="handleDrop(event)"
+           onclick="document.getElementById('excelFileInput').click()">
+        <div class="upload-icon">📊</div>
+        <div class="upload-label">วางไฟล์ที่นี่ หรือคลิกเลือก</div>
+        <div class="upload-sub">.xlsx · Project Plan format</div>
+      </div>
+
+      <input type="file" id="excelFileInput" accept=".xlsx,.xls"
+             style="display:none" onchange="handleFileSelect(event)">
+
+      <div class="upload-status" id="uploadStatus" style="display:none"></div>
+    </div>
+
+    <!-- ── Progress ───────────────────────────────────────── -->
     <div class="sidebar-section">
       <div class="sidebar-title">ข้อมูลที่รวบรวมได้</div>
       <div class="progress-steps" id="progressSteps"></div>
     </div>
+
+    <!-- ── Examples ───────────────────────────────────────── -->
     <div class="sidebar-section">
       <div class="sidebar-title">ตัวอย่าง</div>
       <div class="chips">
@@ -46,6 +70,7 @@
       </div>
     </div>
 
+    <!-- ── Result Panel ────────────────────────────────────── -->
     <div class="result-panel">
       <div class="r-title">ผลการคำนวณ</div>
       <div class="result-placeholder" id="resultPlaceholder">
@@ -67,6 +92,7 @@
         <div class="export-hint">รายงานพร้อมข้อมูลผู้จัดทำ &amp; วันที่</div>
       </div>
     </div>
+
   </aside>
 
   <div class="chat-area">
@@ -74,13 +100,13 @@
       <div class="welcome" id="welcomeScreen">
         <div class="welcome-icon">🤖</div>
         <h2>สวัสดีครับ!</h2>
-        <p>เริ่มต้นด้วยการบอก <strong>ชื่อผู้ขอ</strong> รายละเอียดโครงการ และหัวเรื่องย่อยในแต่ละ phase แล้วผมจะรวมราคาของแต่ละหัวเรื่องเป็นราคารวมของ phase ให้ทันที</p>
+        <p>เริ่มต้นด้วยการ <strong>อัพโหลดไฟล์ Excel</strong> (Project Plan) หรือพิมพ์ข้อมูลโดยตรง</p>
         <div class="welcome-examples">
+          <button class="example-btn" onclick="document.getElementById('excelFileInput').click()">
+            <span class="ex-icon">📂</span><span>อัพโหลดไฟล์ Excel Project Plan (.xlsx)</span>
+          </button>
           <button class="example-btn" onclick="sendExample('ชื่อผู้ขอ สมชาย ใจดี โครงการ ERP ลูกค้า ABC markup 15%\n\nPrepare:\n- หัวข้อ: Requirement Workshop\n  คน: 1\n  ครั้ง: 1\n  วัน/ครั้ง: 2\n  Rate: 4500\n\nImplement:\n- หัวข้อ: Setup ระบบ\n  คน: 2\n  ครั้ง: 2\n  วัน/ครั้ง: 4\n  Rate: 4500\n- หัวข้อ: Training\n  คน: 1\n  ครั้ง: 1\n  วัน/ครั้ง: 2\n  Rate: 4500\n\nService:\n- หัวข้อ: Support หลัง Go-live\n  คน: 1\n  ครั้ง: 1\n  วัน/ครั้ง: 3\n  Rate: 3500')">
             <span class="ex-icon">⚡</span><span>สมชาย ใจดี / ERP ลูกค้า ABC · หัวเรื่องย่อยในแต่ละ phase</span>
-          </button>
-          <button class="example-btn" onclick="sendExample('โครงการ HRM ชื่อผู้จัดทำ วิภา แสงทอง markup 20% Prepare 1 คน 1 ครั้ง 1 วัน rate 3500 Implement 2 คน 3 ครั้ง 3 วัน rate 3500 Service 1 คน 1 ครั้ง 2 วัน rate 3000')">
-            <span class="ex-icon">💼</span><span>วิภา แสงทอง / HRM · 3 phase + กำไรหลังรวม 20%</span>
           </button>
           <button class="example-btn" onclick="sendExample('ต้องการคำนวณค่าใช้จ่ายโครงการ')">
             <span class="ex-icon">🧮</span><span>เริ่มต้นคำนวณค่าใช้จ่ายโครงการใหม่</span>

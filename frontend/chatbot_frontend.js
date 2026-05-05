@@ -1,22 +1,22 @@
-/* chatbot_frontend.js */
+/* chatbot_frontend.js  v1.3 — + Excel Upload */
 
-const PORT = 8070;
+const PORT = 8060;
 const IS_FILE = window.location.protocol === 'file:';
-const API_BASE = IS_FILE ? `http://localhost:${PORT}` : '';
+const API_BASE = IS_FILE ? `http://192.168.105.11:${PORT}` : '';
 const SESSION_ID = 'session_' + Math.random().toString(36).slice(2, 10);
 
 const REQUIRED_FIELDS = [
-  { key: 'requester_name', label: 'ชื่อผู้ขอ / ผู้จัดทำ' },
-  { key: 'project_name',   label: 'ชื่อโครงการ' },
-  { key: 'markup_pct',     label: 'Markup %' },
-  { key: 'prepare_items', label: 'Prepare: หัวเรื่อง' },
+  { key: 'requester_name',  label: 'ชื่อผู้ขอ / ผู้จัดทำ' },
+  { key: 'project_name',    label: 'ชื่อโครงการ' },
+  { key: 'markup_pct',      label: 'Markup %' },
+  { key: 'prepare_items',   label: 'Prepare: หัวเรื่อง' },
   { key: 'implement_items', label: 'Implement: หัวเรื่อง' },
-  { key: 'service_items', label: 'Service: หัวเรื่อง' },
+  { key: 'service_items',   label: 'Service: หัวเรื่อง' },
 ];
 
-let chatStarted = false;
+let chatStarted  = false;
 let currentState = {};
-let isComplete = false;
+let isComplete   = false;
 
 
 // ── Status check ───────────────────────────────────────────────
@@ -24,11 +24,10 @@ let isComplete = false;
 async function checkStatus() {
   const banner = document.getElementById('portBanner');
   document.getElementById('correctUrl').textContent = `http://localhost:${PORT}`;
-
   try {
     const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 5000);
-    const r = await fetch(`${API_BASE}/health`, { signal: ctrl.signal, cache: 'no-store' });
+    const tid  = setTimeout(() => ctrl.abort(), 5000);
+    const r    = await fetch(`${API_BASE}/health`, { signal: ctrl.signal, cache: 'no-store' });
     clearTimeout(tid);
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     await r.json();
@@ -44,7 +43,6 @@ async function checkStatus() {
 function handleKey(e) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 }
-
 function autoResize(el) {
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 120) + 'px';
@@ -74,10 +72,10 @@ async function sendMessage() {
     const ctrl = new AbortController();
     const tid  = setTimeout(() => ctrl.abort(), 300000);
     const res  = await fetch(`${API_BASE}/chat`, {
-      method: 'POST',
+      method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: SESSION_ID, message: text }),
-      signal: ctrl.signal,
+      body:    JSON.stringify({ session_id: SESSION_ID, message: text }),
+      signal:  ctrl.signal,
     });
     clearTimeout(tid);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -110,6 +108,102 @@ function sendExample(text) {
 }
 
 
+// ── Excel Upload ───────────────────────────────────────────────
+
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('uploadDropZone').classList.add('drag-over');
+}
+function handleDragLeave() {
+  document.getElementById('uploadDropZone').classList.remove('drag-over');
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('uploadDropZone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) uploadExcel(file);
+}
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) uploadExcel(file);
+  e.target.value = '';  // reset เพื่อให้เลือกไฟล์เดิมซ้ำได้
+}
+
+async function uploadExcel(file) {
+  const status = document.getElementById('uploadStatus');
+
+  if (!file.name.match(/\.xlsx?$/i)) {
+    setUploadStatus('error', '❌ รองรับเฉพาะไฟล์ .xlsx / .xls เท่านั้น');
+    return;
+  }
+
+  // show loading
+  status.className   = 'upload-status loading';
+  status.style.display = 'flex';
+  status.innerHTML   = `<div class="upload-spinner"></div> กำลังอ่านไฟล์ <strong>${file.name}</strong>…`;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const ctrl = new AbortController();
+    const tid  = setTimeout(() => ctrl.abort(), 60000);
+
+    const res = await fetch(`${API_BASE}/upload/excel/${SESSION_ID}`, {
+      method: 'POST',
+      body:   formData,
+      signal: ctrl.signal,
+    });
+    clearTimeout(tid);
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+
+    // แสดง welcome screen ออก
+    if (!chatStarted) {
+      document.getElementById('welcomeScreen').style.display = 'none';
+      chatStarted = true;
+    }
+
+    // แสดงข้อความใน chat
+    appendMessage('bot', data.reply);
+    currentState = data.state_summary || {};
+    isComplete   = data.is_complete;
+    updateProgress(currentState);
+    if (data.result) updateResultPanel(data.result);
+    updateExportButtons(data.is_complete);
+
+    // status badge
+    const items    = data.state_summary?.phase_items || [];
+    const newCount = items.length;
+    setUploadStatus('success',
+      `✅ นำเข้า <strong>${newCount} หัวเรื่อง</strong> จาก <em>${file.name}</em>`
+    );
+
+  } catch (err) {
+    const msg = err.name === 'AbortError'
+      ? 'หมดเวลา — ไฟล์อาจใหญ่เกินไป หรือ server ไม่ตอบ'
+      : err.message || 'เกิดข้อผิดพลาด';
+    setUploadStatus('error', `❌ ${msg}`);
+    checkStatus();
+  }
+}
+
+function setUploadStatus(type, html) {
+  const el = document.getElementById('uploadStatus');
+  el.className     = `upload-status ${type}`;
+  el.style.display = 'block';
+  el.innerHTML     = html;
+  if (type === 'success') {
+    setTimeout(() => { el.style.display = 'none'; }, 9000);
+  }
+}
+
+
 // ── Export ──────────────────────────────────────────────────────
 
 async function exportFile(type) {
@@ -122,12 +216,12 @@ async function exportFile(type) {
     const res = await fetch(`${API_BASE}/export/${type}/${SESSION_ID}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-    const blob     = await res.blob();
-    const a        = document.createElement('a');
-    a.href         = URL.createObjectURL(blob);
-    const cd       = res.headers.get('Content-Disposition') || '';
-    const match    = cd.match(/filename\*=UTF-8''(.+)/i) || cd.match(/filename="?([^"]+)"?/i);
-    a.download     = match
+    const blob  = await res.blob();
+    const a     = document.createElement('a');
+    a.href      = URL.createObjectURL(blob);
+    const cd    = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename\*=UTF-8''(.+)/i) || cd.match(/filename="?([^"]+)"?/i);
+    a.download  = match
       ? decodeURIComponent(match[1])
       : `manday_${Date.now()}.${type === 'excel' ? 'xlsx' : 'pdf'}`;
 
@@ -195,7 +289,6 @@ function showTyping() {
   wrap.scrollTop = wrap.scrollHeight;
   return div;
 }
-
 function removeTyping(el) { el && el.remove(); }
 
 
@@ -207,10 +300,12 @@ function updateProgress(state) {
   REQUIRED_FIELDS.forEach((f, i) => {
     const val      = stateValue(state, f.key);
     const isDone   = val !== undefined && val !== '';
-    const isActive = !isDone && i === REQUIRED_FIELDS.findIndex(x => stateValue(state, x.key) === undefined || stateValue(state, x.key) === '');
-    const div      = document.createElement('div');
-    div.className  = `step-item ${isDone ? 'done' : isActive ? 'active' : 'pending'}`;
-    div.innerHTML  = `
+    const isActive = !isDone && i === REQUIRED_FIELDS.findIndex(
+      x => stateValue(state, x.key) === undefined || stateValue(state, x.key) === ''
+    );
+    const div     = document.createElement('div');
+    div.className = `step-item ${isDone ? 'done' : isActive ? 'active' : 'pending'}`;
+    div.innerHTML = `
       <div class="step-dot">${isDone ? '✓' : i + 1}</div>
       <div style="min-width:0">
         <div class="step-label">${f.label}</div>
@@ -225,7 +320,7 @@ function stateValue(state, key) {
   const phase = key.replace('_items', '');
   const items = Array.isArray(state.phase_items) ? state.phase_items : [];
   const count = items.filter(x => x && x.phase === phase).length;
-  if (count) return count;
+  if (count)                               return count;
   if (state[`${phase}_cost`] !== undefined) return 'รวม ' + state[`${phase}_cost`];
   return undefined;
 }
@@ -298,6 +393,8 @@ async function resetChat() {
   document.getElementById('resultPlaceholder').style.display = 'block';
   document.getElementById('resultRows').style.display = 'none';
   document.getElementById('exportGroup').style.display = 'none';
+  document.getElementById('uploadStatus').style.display = 'none';
+  document.getElementById('uploadDropZone').classList.remove('drag-over');
 }
 
 function buildWelcomeHTML() {
@@ -305,8 +402,11 @@ function buildWelcomeHTML() {
     <div class="welcome" id="welcomeScreen">
       <div class="welcome-icon">🤖</div>
       <h2>สวัสดีครับ!</h2>
-      <p>เริ่มต้นด้วยการบอก <strong>ชื่อผู้ขอ</strong> รายละเอียดโครงการ และหัวเรื่องย่อยในแต่ละ phase แล้วผมจะรวมราคาของแต่ละหัวเรื่องเป็นราคารวมของ phase ให้ทันที</p>
+      <p>เริ่มต้นด้วยการ <strong>อัพโหลดไฟล์ Excel</strong> (Project Plan) หรือพิมพ์ข้อมูลโดยตรง</p>
       <div class="welcome-examples">
+        <button class="example-btn" onclick="document.getElementById('excelFileInput').click()">
+          <span class="ex-icon">📂</span><span>อัพโหลดไฟล์ Excel Project Plan (.xlsx)</span>
+        </button>
         <button class="example-btn" onclick="sendExample('ชื่อผู้ขอ สมชาย ใจดี โครงการ ERP ลูกค้า ABC markup 15%\\n\\nPrepare:\\n- หัวข้อ: Requirement Workshop\\n  คน: 1\\n  ครั้ง: 1\\n  วัน/ครั้ง: 2\\n  Rate: 4500\\n\\nImplement:\\n- หัวข้อ: Setup ระบบ\\n  คน: 2\\n  ครั้ง: 2\\n  วัน/ครั้ง: 4\\n  Rate: 4500\\n- หัวข้อ: Training\\n  คน: 1\\n  ครั้ง: 1\\n  วัน/ครั้ง: 2\\n  Rate: 4500\\n\\nService:\\n- หัวข้อ: Support หลัง Go-live\\n  คน: 1\\n  ครั้ง: 1\\n  วัน/ครั้ง: 3\\n  Rate: 3500')">
           <span class="ex-icon">⚡</span><span>ERP ABC · หัวเรื่องย่อยในแต่ละ phase พร้อม markup 15%</span>
         </button>

@@ -1,5 +1,5 @@
 """
-router.py — FastAPI route handlers
+router.py — FastAPI route handlers  (v1.3 — + Excel Upload)
 """
 
 import json
@@ -7,7 +7,7 @@ import io
 import re
 from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
 from datetime import datetime
 
@@ -16,6 +16,7 @@ from llm import call_llm, parse_llm_response
 from prompts import build_messages, build_reply
 from export_excel import generate_excel
 from export_pdf import generate_pdf
+from parse_excel import parse_project_excel
 from urllib.parse import quote
 
 router = APIRouter()
@@ -42,13 +43,11 @@ def set_llm(llm_instance):
 # ── State manager — single source of truth ────────────────────
 
 def apply_llm_action(state: CostState, llm_data: dict):
-    # Support both new {actions:[...]} format and legacy single-action format
     actions = llm_data.get("actions")
     if actions and isinstance(actions, list):
         for action in actions:
             _apply_single_action(state, action)
     else:
-        # Legacy fallback: top-level intent/target/payload
         _apply_single_action(state, llm_data)
 
 
@@ -60,7 +59,6 @@ def _apply_single_action(state: CostState, action: dict):
     if not isinstance(payload, (dict, list)):
         return
 
-    # bulk: scalars + items in one message
     if intent == "add" and isinstance(payload, dict) and "items" in payload:
         for s in payload.get("scalars", []):
             if isinstance(s, dict) and "field" in s:
@@ -121,7 +119,6 @@ async def chat(req: ChatRequest):
     state    = get_session(req.session_id)
     user_msg = req.message.strip()
 
-    # reset
     if user_msg.lower() in ("reset", "เริ่มใหม่", "clear"):
         sessions[req.session_id] = CostState()
         return ChatResponse(
@@ -130,7 +127,6 @@ async def chat(req: ChatRequest):
             is_complete=False,
         )
 
-    # debug export
     if user_msg.lower() == "export":
         if state.is_complete():
             result = state.calculate()
@@ -146,7 +142,6 @@ async def chat(req: ChatRequest):
             is_complete=False,
         )
 
-    # normal flow
     state.add_history("user", user_msg)
     messages = build_messages(state, user_msg)
     raw      = call_llm(_llm, messages)
@@ -155,16 +150,116 @@ async def chat(req: ChatRequest):
     print("=== LLM RAW ===\n", raw)
     print("=== PARSED ===\n", llm_data)
 
-    # retry ถ้า parse ได้ empty
     if not llm_data.get("intent") and not llm_data.get("reply"):
         messages[-1]["content"] += "\n\n[IMPORTANT: respond in JSON only, no markdown]"
         raw2     = call_llm(_llm, messages)
         llm_data = parse_llm_response(raw2)
 
-    apply_llm_action(state, llm_data)   # ← จุดเดียวที่แตะ state
+    apply_llm_action(state, llm_data)
 
     reply  = build_reply(state, llm_data)
     state.add_history("assistant", reply)
+    result = state.calculate() if state.is_complete() else None
+
+    return ChatResponse(
+        reply=reply,
+        state_summary=state.data,
+        is_complete=state.is_complete(),
+        result=result,
+    )
+
+
+# ── Excel Upload ───────────────────────────────────────────────
+
+@router.post("/upload/excel/{session_id}")
+async def upload_excel(session_id: str, file: UploadFile = File(...)):
+    """
+    รับไฟล์ Excel (.xlsx) รูปแบบ Project Plan
+    → parse หัวเรื่องย่อย + Man Day
+    → merge เข้า CostState
+    → ส่งคืน ChatResponse เพื่อให้ frontend แสดงผลได้เลย
+    """
+
+    raw    = await file.read()
+    parsed = parse_project_excel(raw, llm_instance=_llm)
+
+    # เพิ่มบรรทัดนี้ชั่วคราว
+    print("=== PARSED EXCEL ===", parsed)
+
+    if not file.filename.lower().endswith((".xlsx", ".xls")):
+        raise HTTPException(status_code=400, detail="รองรับเฉพาะไฟล์ .xlsx / .xls")
+
+    if "error" in parsed:
+        raise HTTPException(status_code=500, detail=parsed["error"])
+
+    state = get_session(session_id)
+
+    print("=== EXISTING ITEMS ===", state.data.get("phase_items", []))
+    print("=== EXISTING KEYS ===", {(i["phase"], i["title"].strip().lower()) for i in state.data.get("phase_items", [])})
+
+    # อัพเดท project_name ถ้ายังไม่มี
+    if parsed.get("project_name") and "project_name" not in state.data:
+        state.data["project_name"] = parsed["project_name"]
+
+    # merge phase_items (ไม่ซ้ำ title+phase)
+    state.data.setdefault("phase_items", [])
+    existing_keys = {
+        (i["phase"], i["title"].strip().lower())
+        for i in state.data["phase_items"]
+    }
+    added = []
+    for item in parsed.get("phase_items", []):
+        key = (item["phase"], item["title"].strip().lower())
+        print(f"=== CHECKING KEY === {key} | in existing: {key in existing_keys}")  # ← เพิ่ม
+        if key not in existing_keys:
+            state.data["phase_items"].append(item)
+            existing_keys.add(key)
+            added.append(item)
+    print("=== ADDED ===", len(added))  # ← เพิ่ม
+
+    # สร้าง reply
+    total       = len(added)
+    phase_count: dict[str, int] = {}
+    for it in added:
+        phase_count[it["phase"]] = phase_count.get(it["phase"], 0) + 1
+
+    label_map   = {"prepare": "Prepare", "implement": "Implement", "service": "Service"}
+    phase_lines = [
+        f"  • {label_map.get(ph, ph)}: {cnt} หัวเรื่อง"
+        for ph, cnt in phase_count.items()
+    ]
+
+    warnings_text = ""
+    if parsed.get("warnings"):
+        warnings_text = "\n\n⚠️ **หมายเหตุ:**\n" + "\n".join(
+            f"  - {w}" for w in parsed["warnings"]
+        )
+
+    missing      = state.missing_required()
+    missing_hint = ""
+    if missing:
+        labels       = [l for _, l in missing]
+        missing_hint = f"\n\n📝 ยังขาด: **{', '.join(labels)}** — กรุณาระบุเพิ่มเติมในแชทครับ"
+
+    project_info = f"**{parsed['project_name']}**" if parsed.get("project_name") else f"**{file.filename}**"
+
+    if added:
+        reply = (
+            f"✅ อัพโหลด {project_info} สำเร็จครับ!\n\n"
+            f"นำเข้า **{total} หัวเรื่อง**:\n" + "\n".join(phase_lines) +
+            "\n\n💡 **หมายเหตุ:** ยังไม่มี Rate (฿/วัน) — "
+            "กรุณาระบุ Rate ของแต่ละหัวเรื่อง และ Markup % เพื่อคำนวณราคาขายครับ" +
+            warnings_text + missing_hint
+        )
+    else:
+        reply = (
+            f"ℹ️ ไม่พบหัวเรื่องใหม่ใน {project_info} "
+            "(อาจซ้ำกับที่มีอยู่แล้ว หรือรูปแบบ Excel ไม่ตรง)"
+        )
+
+    state.add_history("user", f"[อัพโหลดไฟล์ Excel: {file.filename}]")
+    state.add_history("assistant", reply)
+
     result = state.calculate() if state.is_complete() else None
 
     return ChatResponse(

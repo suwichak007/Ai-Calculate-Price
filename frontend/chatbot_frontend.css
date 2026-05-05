@@ -141,3 +141,69 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);font-size:14
 /* ── PORT BANNER ────────────────────────────────────────────── */
 .port-banner{background:var(--amber-light);border-bottom:1px solid var(--amber);padding:6px 24px;font-size:12px;color:var(--amber);display:none;gap:8px;align-items:center;}
 .port-banner.show{display:flex}
+
+/* ── UPLOAD ZONE (เพิ่มต่อท้าย chatbot_frontend.css) ────────── */
+
+.upload-section { padding: 14px 16px; border-bottom: 1px solid var(--border-soft); }
+
+.upload-drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 12px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .2s, background .2s, transform .15s;
+  background: var(--surface2);
+  user-select: none;
+}
+.upload-drop-zone:hover {
+  border-color: var(--blue);
+  background: var(--blue-light);
+}
+.upload-drop-zone.drag-over {
+  border-color: var(--blue);
+  background: var(--blue-light);
+  transform: scale(1.015);
+}
+.upload-icon  { font-size: 26px; margin-bottom: 6px; pointer-events: none; }
+.upload-label { font-size: 12.5px; font-weight: 600; color: var(--text-mid); pointer-events: none; }
+.upload-sub   { font-size: 10.5px; color: var(--text-dim); margin-top: 3px; pointer-events: none; }
+
+/* status badge */
+.upload-status {
+  margin-top: 10px;
+  border-radius: var(--radius);
+  padding: 9px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  border: 1px solid transparent;
+}
+.upload-status.loading {
+  background: var(--amber-light);
+  border-color: #fde68a;
+  color: var(--amber);
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+.upload-status.success {
+  background: var(--green-light);
+  border-color: #bbf7d0;
+  color: #065f46;
+}
+.upload-status.error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: var(--red);
+}
+
+/* spinner */
+.upload-spinner {
+  width: 14px; height: 14px;
+  border: 2px solid #fde68a;
+  border-top-color: var(--amber);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }

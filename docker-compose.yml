@@ -1,0 +1,12 @@
+services:
+  manday-chatbot:
+    build: .
+    container_name: manday-chatbot
+    ports:
+      - "8060:8060"
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - ./backend:/app/backend
+      - ./frontend:/app/frontend
