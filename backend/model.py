@@ -41,7 +41,7 @@ class CostState:
     def __init__(self):
         self.data: dict = {}
         self.history: list = []
-
+ 
     def missing_required(self) -> list[tuple[str, str]]:
         return [
             (key, label)
