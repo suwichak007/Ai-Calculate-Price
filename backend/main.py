@@ -25,9 +25,9 @@ async def startup_event():
     set_llm(llm)
 
 if __name__ == "__main__":
-    PORT = 8060
+    PORT = 8061
     print("\n" + "="*50)
     print(f"  Manday Cost Chatbot v1.2")
     print(f"  http://localhost:{PORT}")
     print("="*50 + "\n")
-    uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=PORT, reload=False)
