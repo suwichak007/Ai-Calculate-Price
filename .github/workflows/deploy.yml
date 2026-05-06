@@ -11,7 +11,6 @@ jobs:
 
     steps:
       - name: Checkout source
-        uses: actions/checkout@v4
 
       - name: Stop and remove old container
         shell: powershell
@@ -33,4 +32,6 @@ jobs:
             -p 8060:8060 `
             --env-file .env `
             manday-chatbot
+
+            
             
