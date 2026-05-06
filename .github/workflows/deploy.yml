@@ -11,20 +11,24 @@ jobs:
 
     steps:
       - name: Checkout source
+        uses: actions/checkout@v4
 
       - name: Stop and remove old container
         shell: powershell
+        working-directory: C:\Ai-Calculate-Price
         run: |
           docker rm -f manday-chatbot
           exit 0
 
       - name: Build Docker image
         shell: powershell
+        working-directory: C:\Ai-Calculate-Price
         run: |
           docker build -t manday-chatbot .
 
       - name: Run new container
         shell: powershell
+        working-directory: C:\Ai-Calculate-Price
         run: |
           docker run -d `
             --name manday-chatbot `
@@ -32,6 +36,3 @@ jobs:
             -p 8060:8060 `
             --env-file .env `
             manday-chatbot
-
-            
-            
