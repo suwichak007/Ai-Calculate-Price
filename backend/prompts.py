@@ -68,7 +68,13 @@ RULES:
   → actions: [] (ยังไม่ต้องทำอะไร รอ user ตอบก่อน)
 
 - ถ้า user ระบุ item ชัดเจน เช่น "Setup ระบบ ค่าโรงแรม 1200"
-  → intent=edit, target=phase_item, payload={"phase":"implement","title":"Setup ระบบ","hotel":1200}"""
+  → intent=edit, target=phase_item, payload={"phase":"implement","title":"Setup ระบบ","hotel":1200}
+  
+6. {"intent":"suggest","target":"phase_items","payload":{"items":[...],"assumption":"..."}}
+   - ใช้เมื่อ user บอก requirement แบบ free-text เช่น "ต้องการติดตั้ง ERP มี 3 site training 2 ครั้ง"
+   - LLM วิเคราะห์แล้ว suggest phase_items พร้อม days/person/times ที่เหมาะสม
+   - ไม่ใส่ rate — ให้ user confirm ก่อน
+   - assumption: อธิบายสิ่งที่ LLM สมมติเพิ่มเติมจาก requirement ของ user เพื่อให้ user เข้าใจว่าทำไมถึงได้ suggestion นี้มา"""
 
 
 def state_context(state: CostState) -> str:
@@ -129,6 +135,30 @@ def build_messages(state: CostState, user_message: str) -> list:
 
 def build_reply(state: CostState, llm_data: dict) -> str:
     llm_reply = llm_data.get("reply", "").strip()
+    
+    if "pending_suggestion" in state.data:
+        suggestion = state.data["pending_suggestion"]
+        items = suggestion.get("items", [])
+        assumption = suggestion.get("assumption", "")
+        
+        lines = ["📋 **วิเคราะห์ความต้องการได้ดังนี้ครับ:**\n"]
+        lines.append("| Phase | หัวเรื่อง | คน | ครั้ง | วัน | Rate (ประมาณ) |")
+        lines.append("|---|---|---:|---:|---:|---:|")
+        for item in items:
+            rate = item.get("rate", "-")
+            rate_str = f"฿{rate:,}" if isinstance(rate, (int, float)) else str(rate)
+            lines.append(
+                f"| {item.get('phase','').capitalize()} "
+                f"| {item.get('title','')} "
+                f"| {item.get('person',1)} "
+                f"| {item.get('times',1)} "
+                f"| {item.get('days',1)} "
+                f"| {rate_str} |"
+            )
+        if assumption:
+            lines.append(f"\n💡 **สมมติฐาน:** {assumption}")
+        lines.append("\n✅ ยืนยันใช้รายการนี้ได้เลยครับ หรือแก้ไขก่อน?")
+        return "\n".join(lines)
 
     # 1. items ที่ขาด field บางอย่าง
     incomplete = []

@@ -94,6 +94,12 @@ def _apply_single_action(state: CostState, action: dict):
         for s in items:
             if isinstance(s, dict) and "field" in s:
                 state.data[s["field"]] = s["value"]
+                
+    elif intent == "suggest" and target == "phase_items":
+        state.data["pending_suggestion"] = {
+            "items":      payload.get("items", []),
+            "assumption": payload.get("assumption", ""),
+        }
 
 
 def _add_items(state: CostState, items: list):
