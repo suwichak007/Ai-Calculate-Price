@@ -50,6 +50,11 @@ PHASE MAPPING:
 - implement = Implement / ติดตั้ง / ทำระบบ
 - service   = Service / Support / MA / บำรุงรักษา
 
+CONFIRMATION RULE:
+- ถ้า [CURRENT STATE].pending_suggestion ไม่ว่าง และ user พูดว่า "ยืนยัน" / "ok" / "ได้เลย" / "confirm"
+  → ให้สร้าง add actions จาก pending_suggestion.items ทุกตัว
+  → ห้าม suggest ซ้ำอีกครั้ง
+
 RULES:
 - Phase items are OPTIONAL — user can have 0 items in any phase, result will show 0 for that phase
 - Only 3 fields required to show result: requester_name, project_name, markup_pct
@@ -75,11 +80,7 @@ RULES:
    - LLM วิเคราะห์แล้ว suggest phase_items พร้อม days/person/times ที่เหมาะสม
    - ไม่ใส่ rate — ให้ user confirm ก่อน
    - assumption: อธิบายสิ่งที่ LLM สมมติเพิ่มเติมจาก requirement ของ user เพื่อให้ user เข้าใจว่าทำไมถึงได้ suggestion นี้มา
-   
-7. {"intent":"confirm_suggestion","target":"phase_items","payload":{}}
-   - ใช้เมื่อ user ยืนยัน suggestion เช่น "ยืนยัน", "ใช้ได้เลย", "โอเค", "ตกลง", "ok", "yes", "confirm"
-   - ห้ามใช้ intent=add — ต้องใช้ intent=confirm_suggestion เท่านั้น
-   - pending_suggestion จะถูก apply เข้า state โดย backend อัตโนมัติ"""
+"""
 
 
 def state_context(state: CostState) -> str:
@@ -121,6 +122,7 @@ def state_context(state: CostState) -> str:
         "missing":         [label for _, label in missing],
         "waiting_for_rate": waiting_rate,
         "is_complete":     state.is_complete(),
+        "pending_suggestion": state.data.get("pending_suggestion"),
     }
     return (
         f"\n\n[CURRENT STATE]: {json.dumps(ctx, ensure_ascii=False)}"

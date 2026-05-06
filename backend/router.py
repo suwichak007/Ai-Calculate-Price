@@ -64,11 +64,13 @@ def _apply_single_action(state: CostState, action: dict):
             if isinstance(s, dict) and "field" in s:
                 state.data[s["field"]] = s["value"]
         _add_items(state, payload["items"])
+        state.data.pop("pending_suggestion", None)
         return
 
     if intent == "add" and target == "phase_item":
         items = payload if isinstance(payload, list) else [payload]
         _add_items(state, items)
+        state.data.pop("pending_suggestion", None) 
 
     elif intent == "delete" and target == "phase_item":
         phase = str(payload.get("phase", "")).lower()
@@ -94,7 +96,7 @@ def _apply_single_action(state: CostState, action: dict):
         for s in items:
             if isinstance(s, dict) and "field" in s:
                 state.data[s["field"]] = s["value"]
-                
+
     elif intent == "suggest" and target == "phase_items":
         state.data["pending_suggestion"] = {
             "items":      payload.get("items", []),
