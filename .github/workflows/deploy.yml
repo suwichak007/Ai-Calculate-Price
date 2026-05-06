@@ -35,4 +35,4 @@ jobs:
             --restart unless-stopped `
             -p 8060:8060 `
             --env-file .env `
-            manday-chatbot 
+            manday-chatbot  
