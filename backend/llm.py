@@ -6,23 +6,33 @@ import json
 import re
 import os
 from groq import Groq
+import anthropic
 
 
 def load_llm():
-    api_key = os.environ.get("GROQ_API_KEY")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        raise ValueError("ไม่พบ GROQ_API_KEY ใน environment variables")
-    return Groq(api_key=api_key)
+        raise ValueError("ไม่พบ ANTHROPIC_API_KEY ใน environment variables")
+    return anthropic.Anthropic(api_key=api_key)
 
 
 def call_llm(client, messages: list) -> str:
-    res = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=messages,
+    # แยก system message ออกมา
+    system_prompt = ""
+    filtered_messages = []
+    for msg in messages:
+        if msg["role"] == "system":
+            system_prompt = msg["content"]
+        else:
+            filtered_messages.append(msg)
+
+    res = client.messages.create(
+        model="claude-haiku-4-5-20251001",
         max_tokens=1000,
-        temperature=0.1,
+        system=system_prompt,
+        messages=filtered_messages,
     )
-    return res.choices[0].message.content.strip()
+    return res.content[0].text.strip()
 
 
 def parse_llm_response(raw: str) -> dict:

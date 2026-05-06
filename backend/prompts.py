@@ -181,7 +181,7 @@ def format_result(r: dict) -> str:
         "",
         "| รายการ | มูลค่า |",
         "|---|---|",
-        f"| Manday รวม | {r['manday']:,.0f} วัน |",
+        f"| Manday รวม | {r['manday']:,.2g} วัน |",
         f"| Prepare Phase | {phase_summary(r['phase_costs'][0])} |",
         f"| Implement Phase | {phase_summary(r['phase_costs'][1])} |",
         f"| Service Phase | {phase_summary(r['phase_costs'][2])} |",
@@ -196,7 +196,7 @@ def format_result(r: dict) -> str:
     for phase in r["phase_costs"]:
         for item in phase.get("items", []):
             lines.append(
-                f"| {phase['label']} | {item['title']} | {item['manday']:,.0f} | {baht(item['cost'])} |"
+                f"| {phase['label']} | {item['title']} | {item['manday']:,.2g} | {baht(item['cost'])} |"
             )
     lines += [
         "",
@@ -209,4 +209,4 @@ def format_result(r: dict) -> str:
 
 def phase_summary(p: dict) -> str:
     def baht(n): return f"฿{n:,.0f}"
-    return f"{len(p.get('items', []))} หัวข้อ / {p['manday']:,.0f} manday = {baht(p['cost'])}"
+    return f"{len(p.get('items', []))} หัวข้อ / {p['manday']:,.2g} manday = {baht(p['cost'])}"

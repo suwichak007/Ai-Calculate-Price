@@ -163,6 +163,7 @@ class CostState:
 
     def _calculated_items(self, phase: str) -> list[dict]:
         items = self._phase_items(phase)
+        
         if not items:
             d = self.data
             person = float(d.get(f"{phase}_person", d.get("person", 0) if phase == "implement" else 0))
@@ -228,6 +229,7 @@ class CostState:
                 "taxi":         float(item.get("taxi", 0) or 0),
                 "travel_allow": float(item.get("travel_allow", 0) or 0),
             })
+            print(f"DEBUG: {item.get('title')} | person={person} times={times} days={days} → manday={manday}")
         return calculated
 
 

@@ -1,6 +1,6 @@
 /* chatbot_frontend.js  v1.3 — + Excel Upload */
 
-const PORT = 8060;
+const PORT = 8061;
 const IS_FILE = window.location.protocol === 'file:';
 const API_BASE = IS_FILE ? `http://192.168.105.11:${PORT}` : '';
 const SESSION_ID = 'session_' + Math.random().toString(36).slice(2, 10);
@@ -350,7 +350,7 @@ function updateResultPanel(result) {
     <div class="phase-group">
       <div class="phase-total">
         <span class="phase-name">${p.label}</span>
-        <span>${Number(p.manday || 0).toLocaleString('th-TH')} md</span>
+        <span>${Number(p.manday || 0).toLocaleString('th-TH', {minimumFractionDigits: 0, maximumFractionDigits: 2})} md</span>
         <strong>${b(p.cost || 0)}</strong>
       </div>
       ${(p.items || []).map(item => `
@@ -358,13 +358,13 @@ function updateResultPanel(result) {
           <span>${item.title || '-'}</span>
           <span>${Number(item.person || 0).toLocaleString('th-TH')} คน</span>
           <span>${Number(item.times || 0).toLocaleString('th-TH')} ครั้ง</span>
-          <span>${Number(item.days || 0).toLocaleString('th-TH')} วัน</span>
+          <span>${Number(item.days || 0).toLocaleString('th-TH', {minimumFractionDigits: 0, maximumFractionDigits: 2})} วัน</span>
           <span>${b(item.rate || 0)}</span>
           <strong>${b(item.cost || 0)}</strong>
         </div>`).join('')}
     </div>`).join('');
   rows.innerHTML = `
-    <div class="result-row"><span class="r-label">Manday รวม</span><span class="r-value">${result.manday} วัน</span></div>
+    <div class="result-row"><span class="r-label">Manday รวม</span><span class="r-value">${Number(result.manday).toLocaleString('th-TH', {minimumFractionDigits: 0, maximumFractionDigits: 2})} วัน</span></div>
     <div class="phase-table">
       <div class="phase-head">
         <span>หัวเรื่อง</span><span>คน</span><span>ครั้ง</span><span>วัน</span><span>Rate</span><span>ต้นทุน</span>

@@ -52,6 +52,8 @@ PHASE MAPPING:
 - "service"   = Documentation / OJT / Support / MA
 
 EXTRACTION RULES:
+- Rows starting with "-" → bullet detail, SKIP **even if they have a Man Day value**
+- Only extract rows that are sub-numbered (1.1, 2.1, 2.2) OR standalone task names WITHOUT leading "-"
 - Rows numbered "1.1", "1.2", "2.1", "2.2" etc → extract as phase_item
 - Rows numbered "1", "2", "3" (no decimal) → section header, SKIP
 - Rows starting with "-" → bullet detail, SKIP
@@ -59,6 +61,13 @@ EXTRACTION RULES:
 - person: default 1
 - times: default 1
 - Sub-tasks like "Migrate WIN16-DC-AD1..." under "2.1" → each becomes its own phase_item
+
+CRITICAL EXAMPLE — what to SKIP vs EXTRACT:
+Input:
+  2.2   Migrate RODC Active Directory Servers     ← numbered header → SKIP
+  \t- Recheck RODC Servers configuration  1 Day  ← starts with "-" → SKIP even with Man Day
+  \tMigrate W12DNSAPP05 to Windows Server 2022    ← standalone task name
+  \t- Recheck and move applications...            ← starts with "-" → SKIP
 
 EXAMPLE OUTPUT for this input:
   1.1 | Site Survey | 0.5 Day
@@ -118,7 +127,7 @@ def _excel_to_text(file_bytes: bytes) -> tuple:
                 if val is None:
                     cells.append("")
                 elif isinstance(val, float):
-                    cells.append(str(int(val)) if val == int(val) else str(round(val, 2)))
+                    cells.append(str(round(val, 2)))
                 else:
                     cells.append(str(val).strip().replace("\n", " "))
 
@@ -223,13 +232,21 @@ def parse_project_excel(file_bytes: bytes, llm_instance=None) -> dict:
 def _call_llm(llm_instance, messages: list) -> str:
     if llm_instance is not None:
         try:
-            res = llm_instance.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=messages,  # ส่งทั้งก้อนเลย รวม system
+            system_prompt = ""
+            filtered_messages = []
+            for msg in messages:
+                if msg["role"] == "system":
+                    system_prompt = msg["content"]
+                else:
+                    filtered_messages.append(msg)
+
+            res = llm_instance.messages.create(  # ← ตรงนี้ เปลี่ยน client → llm_instance
+                model="claude-haiku-4-5-20251001",
                 max_tokens=2000,
-                temperature=0.1,
+                system=system_prompt,
+                messages=filtered_messages,
             )
-            return res.choices[0].message.content.strip()
+            return res.content[0].text.strip()
         except Exception as e:
             return json.dumps({"error": str(e)})
     return json.dumps({"error": "no llm instance"})
