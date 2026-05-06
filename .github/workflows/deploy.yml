@@ -17,22 +17,28 @@ jobs:
         shell: powershell
         working-directory: C:\Ai-Calculate-Price
         run: |
+          # หยุดและลบคอนเทนเนอร์
           docker rm -f manday-chatbot
+          # เคลียร์พอร์ตที่อาจค้างอยู่ในระดับระบบ (Optional)
+          Start-Sleep -Seconds 3 
           exit 0
 
-      - name: Build Docker image
+      - name: Build Docker image (No Cache)
         shell: powershell
         working-directory: C:\Ai-Calculate-Price
         run: |
-          docker build -t manday-chatbot .
+          # ใช้ --no-cache เพื่อป้องกันการดึง Code เก่ามา Build
+          docker build --no-cache -t manday-chatbot .
 
       - name: Run new container
         shell: powershell
         working-directory: C:\Ai-Calculate-Price
         run: |
+          # รอให้ Windows คืน Port 8060 ให้ว่างจริงๆ
+          Start-Sleep -Seconds 5
           docker run -d `
             --name manday-chatbot `
             --restart unless-stopped `
             -p 8060:8060 `
             --env-file .env `
-            manday-chatbot  
+            manday-chatbot
