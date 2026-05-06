@@ -9,6 +9,7 @@ export_pdf.py — PDF report generator
 import io
 import os
 from datetime import datetime
+from pathlib import Path   
 
 
 def generate_pdf(result: dict) -> bytes:
@@ -26,20 +27,31 @@ def generate_pdf(result: dict) -> bytes:
     # ── Font: ลองโหลด Thai font ก่อน fallback เป็น Helvetica ────
     FONT      = "Helvetica"
     FONT_BOLD = "Helvetica-Bold"
-    thai_font_paths = [
-        "/usr/share/fonts/truetype/tlwg/Sarabun.ttf",
-        "/usr/share/fonts/truetype/tlwg/Norasi.ttf",
-        "/usr/share/fonts/opentype/noto/NotoSansThai-Regular.ttf",
-        "/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf",
+    FONT_SEARCH_PATHS = [
+        # 1. font ที่ bundle ไว้ใน project (แน่นอนที่สุด)
+        Path(__file__).parent / "fonts" / "NotoSansThai-VariableFont_wdth,wght.ttf",
+        Path(__file__).parent / "fonts" / "Sarabun-Regular.ttf",
+        # 2. system fonts (Ubuntu)
+        Path("/usr/share/fonts/truetype/tlwg/Sarabun.ttf"),
+        Path("/usr/share/fonts/truetype/tlwg/Norasi.ttf"),
+        Path("/usr/share/fonts/opentype/noto/NotoSansThai-Regular.ttf"),
+        Path("/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf"),
+        Path("/usr/share/fonts/noto/NotoSansThai-Regular.ttf"),
     ]
-    for fp in thai_font_paths:
-        if os.path.exists(fp):
+
+    for fp in FONT_SEARCH_PATHS:
+        if fp.exists():
             try:
-                pdfmetrics.registerFont(TTFont("Thai", fp))
-                FONT = FONT_BOLD = "Thai"
+                pdfmetrics.registerFont(TTFont("ThaiFontReg", str(fp)))
+                FONT = FONT_BOLD = "ThaiFontReg"
+                print(f"[PDF] Loaded Thai font: {fp}")
                 break
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[PDF] Font load failed {fp}: {e}")
+    print(f"[PDF] Active font: {FONT}")
+
+    if FONT == "Helvetica":
+        print("[PDF] WARNING: No Thai font found — Thai text will show as boxes!")
 
     # ── Colors ────────────────────────────────────────────────
     DARK_BLUE = colors.HexColor("#1E3A5F")
