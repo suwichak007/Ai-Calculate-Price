@@ -74,7 +74,12 @@ RULES:
    - ใช้เมื่อ user บอก requirement แบบ free-text เช่น "ต้องการติดตั้ง ERP มี 3 site training 2 ครั้ง"
    - LLM วิเคราะห์แล้ว suggest phase_items พร้อม days/person/times ที่เหมาะสม
    - ไม่ใส่ rate — ให้ user confirm ก่อน
-   - assumption: อธิบายสิ่งที่ LLM สมมติเพิ่มเติมจาก requirement ของ user เพื่อให้ user เข้าใจว่าทำไมถึงได้ suggestion นี้มา"""
+   - assumption: อธิบายสิ่งที่ LLM สมมติเพิ่มเติมจาก requirement ของ user เพื่อให้ user เข้าใจว่าทำไมถึงได้ suggestion นี้มา
+   
+7. {"intent":"confirm_suggestion","target":"phase_items","payload":{}}
+   - ใช้เมื่อ user ยืนยัน suggestion เช่น "ยืนยัน", "ใช้ได้เลย", "โอเค", "ตกลง", "ok", "yes", "confirm"
+   - ห้ามใช้ intent=add — ต้องใช้ intent=confirm_suggestion เท่านั้น
+   - pending_suggestion จะถูก apply เข้า state โดย backend อัตโนมัติ"""
 
 
 def state_context(state: CostState) -> str:
@@ -135,7 +140,7 @@ def build_messages(state: CostState, user_message: str) -> list:
 
 def build_reply(state: CostState, llm_data: dict) -> str:
     llm_reply = llm_data.get("reply", "").strip()
-    
+
     if "pending_suggestion" in state.data:
         suggestion = state.data["pending_suggestion"]
         items = suggestion.get("items", [])
