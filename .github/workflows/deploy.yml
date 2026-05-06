@@ -1,4 +1,4 @@
-name: Deploy Docker App
+name: Deploy Manday Chatbot
 
 on:
   push:
@@ -13,8 +13,23 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Stop old container
-        run: docker compose down
+      - name: Stop and remove old container
+        shell: powershell
+        run: |
+          docker rm -f manday-chatbot
+          exit 0
 
-      - name: Build and start container
-        run: docker compose up -d --build
+      - name: Build Docker image
+        shell: powershell
+        run: |
+          docker build -t manday-chatbot .
+
+      - name: Run new container
+        shell: powershell
+        run: |
+          docker run -d `
+            --name manday-chatbot `
+            --restart unless-stopped `
+            -p 8060:8060 `
+            --env-file .env `
+            manday-chatbot
