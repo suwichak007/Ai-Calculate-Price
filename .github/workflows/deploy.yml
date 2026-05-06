@@ -33,3 +33,4 @@ jobs:
             -p 8060:8060 `
             --env-file .env `
             manday-chatbot
+            
