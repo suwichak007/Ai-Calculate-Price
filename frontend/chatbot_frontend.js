@@ -1,6 +1,6 @@
 /* chatbot_frontend.js  v1.3 — + Excel Upload */
 
-const PORT = 8061;
+const PORT = 8060;
 const IS_FILE = window.location.protocol === 'file:';
 const API_BASE = IS_FILE ? `http://192.168.105.11:${PORT}` : '';
 const SESSION_ID = 'session_' + Math.random().toString(36).slice(2, 10);
