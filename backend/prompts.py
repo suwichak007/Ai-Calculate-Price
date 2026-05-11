@@ -77,9 +77,10 @@ RULES:
   
 6. {"intent":"suggest","target":"phase_items","payload":{"items":[...],"assumption":"..."}}
    - ใช้เมื่อ user บอก requirement แบบ free-text เช่น "ต้องการติดตั้ง ERP มี 3 site training 2 ครั้ง"
-   - LLM วิเคราะห์แล้ว suggest phase_items พร้อม days/person/times ที่เหมาะสม
-   - ไม่ใส่ rate — ให้ user confirm ก่อน
-   - assumption: อธิบายสิ่งที่ LLM สมมติเพิ่มเติมจาก requirement ของ user เพื่อให้ user เข้าใจว่าทำไมถึงได้ suggestion นี้มา
+   - LLM วิเคราะห์แล้ว suggest phase_items พร้อม days/person/times/rate ที่เหมาะสม
+   - ใส่ rate เป็นประมาณการตามประเภทงาน (เช่น Consultant=4500, Technical=4000, Training=3500, Support=3000)
+   - rate_source ให้ set เป็น "inferred" เสมอสำหรับ suggestion
+   - assumption: อธิบายสิ่งที่ LLM สมมติ รวมถึง rate ที่ประมาณการมาด้วย
 """
 
 
@@ -144,26 +145,47 @@ def build_reply(state: CostState, llm_data: dict) -> str:
     llm_reply = llm_data.get("reply", "").strip()
 
     if "pending_suggestion" in state.data:
+        import math as _math
         suggestion = state.data["pending_suggestion"]
         items = suggestion.get("items", [])
         assumption = suggestion.get("assumption", "")
-        
+
+        def _preview_cost(item):
+            person = float(item.get("person", 1) or 1)
+            times  = float(item.get("times",  1) or 1)
+            days   = float(item.get("days",   1) or 1)
+            rate   = float(item.get("rate",   0) or 0)
+            return _math.ceil(person * times * days * rate)
+
+        total_cost     = sum(_preview_cost(i) for i in items)
+        markup_pct     = float(state.data.get("markup_pct", 0) or 0)
+        total_w_markup = _math.ceil(total_cost * (1 + markup_pct / 100))
+
         lines = ["📋 **วิเคราะห์ความต้องการได้ดังนี้ครับ:**\n"]
-        lines.append("| Phase | หัวเรื่อง | คน | ครั้ง | วัน | Rate (ประมาณ) |")
-        lines.append("|---|---|---:|---:|---:|---:|")
+        lines.append("| Phase | หัวเรื่อง | คน | ครั้ง | วัน | Rate | ประมาณการ |")
+        lines.append("|---|---|---:|---:|---:|---:|---:|")
         for item in items:
-            rate = item.get("rate", "-")
-            rate_str = f"฿{rate:,}" if isinstance(rate, (int, float)) else str(rate)
+            rate = item.get("rate", 0) or 0
+            cost = _preview_cost(item)
+            rate_str = f"฿{rate:,}" if rate else "-"
+            cost_str = f"฿{cost:,}" if cost else "-"
             lines.append(
                 f"| {item.get('phase','').capitalize()} "
                 f"| {item.get('title','')} "
                 f"| {item.get('person',1)} "
                 f"| {item.get('times',1)} "
                 f"| {item.get('days',1)} "
-                f"| {rate_str} |"
+                f"| {rate_str} "
+                f"| {cost_str} |"
+            )
+        lines.append(f"| | | | | | **รวมต้นทุน** | **฿{total_cost:,}** |")
+        if markup_pct:
+            lines.append(
+                f"| | | | | | **+Markup {markup_pct:.0f}%** | **฿{total_w_markup:,}** |"
             )
         if assumption:
             lines.append(f"\n💡 **สมมติฐาน:** {assumption}")
+        lines.append("\n⚠️ *Rate เป็นประมาณการ — กรุณาตรวจสอบก่อนยืนยัน*")
         lines.append("\n✅ ยืนยันใช้รายการนี้ได้เลยครับ หรือแก้ไขก่อน?")
         return "\n".join(lines)
 
