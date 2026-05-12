@@ -51,7 +51,7 @@ function autoResize(el) {
 
 // ── Send message ────────────────────────────────────────────────
 
-async function sendMessage() {
+async function sendMessage(freeText = false) {
   const input = document.getElementById('chatInput');
   const text  = input.value.trim();
   if (!text) return;
@@ -67,6 +67,7 @@ async function sendMessage() {
 
   const typing = showTyping();
   document.getElementById('sendBtn').disabled = true;
+  document.getElementById('freeTextBtn').disabled = true;
 
   try {
     const ctrl = new AbortController();
@@ -74,7 +75,7 @@ async function sendMessage() {
     const res  = await fetch(`${API_BASE}/chat`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ session_id: SESSION_ID, message: text }),
+      body:    JSON.stringify({ session_id: SESSION_ID, message: text, free_text: freeText }),
       signal:  ctrl.signal,
     });
     clearTimeout(tid);
@@ -99,12 +100,17 @@ async function sendMessage() {
   }
 
   document.getElementById('sendBtn').disabled = false;
+  document.getElementById('freeTextBtn').disabled = false;
   input.focus();
 }
 
 function sendExample(text) {
   document.getElementById('chatInput').value = text;
   sendMessage();
+}
+
+function sendFreeText() {
+  sendMessage(true);
 }
 
 
