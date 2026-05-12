@@ -52,7 +52,7 @@ class CostState:
     def _phase_items(self, phase: str) -> list[dict]:
         items = self.data.get("phase_items", [])
         if not isinstance(items, list):
-            return []
+            return [] 
         return [
             i for i in items
             if isinstance(i, dict) and i.get("phase") == phase and self._is_valid_item(i)
