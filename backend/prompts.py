@@ -294,6 +294,7 @@ def build_reply(state: CostState, llm_data: dict) -> str:
 
 def format_result(r: dict) -> str:
     def baht(n): return f"฿{n:,.0f}"
+    def manday(n): return f"{n:,.1f}".rstrip('0').rstrip('.')  # 270 → "270", 2.5 → "2.5"
 
     lines = [
         f"## 🎯 ผลการคำนวณ — {r['project_name']}",
@@ -301,7 +302,7 @@ def format_result(r: dict) -> str:
         "",
         "| รายการ | มูลค่า |",
         "|---|---|",
-        f"| Manday รวม | {r['manday']:,.2g} วัน |",
+        f"| Manday รวม | {manday(r['manday'])} วัน |",
         f"| Prepare Phase | {phase_summary(r['phase_costs'][0])} |",
         f"| Implement Phase | {phase_summary(r['phase_costs'][1])} |",
         f"| Service Phase | {phase_summary(r['phase_costs'][2])} |",
@@ -316,7 +317,7 @@ def format_result(r: dict) -> str:
     for phase in r["phase_costs"]:
         for item in phase.get("items", []):
             lines.append(
-                f"| {phase['label']} | {item['title']} | {item['manday']:,.2g} | {baht(item['cost'])} |"
+                f"| {phase['label']} | {item['title']} | {manday(item['manday'])} | {baht(item['cost'])} |"
             )
     lines += [
         "",
@@ -329,4 +330,5 @@ def format_result(r: dict) -> str:
 
 def phase_summary(p: dict) -> str:
     def baht(n): return f"฿{n:,.0f}"
-    return f"{len(p.get('items', []))} หัวข้อ / {p['manday']:,.2g} manday = {baht(p['cost'])}"
+    def manday(n): return f"{n:,.1f}".rstrip('0').rstrip('.')
+    return f"{len(p.get('items', []))} หัวข้อ / {manday(p['manday'])} manday = {baht(p['cost'])}"
