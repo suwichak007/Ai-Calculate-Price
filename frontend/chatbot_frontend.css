@@ -127,6 +127,10 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);font-size:14
 .btn-send:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(37,99,235,.45)}
 .btn-send:disabled{opacity:.5;cursor:not-allowed;transform:none}
 .btn-send svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.btn-free-text{height:44px;border-radius:999px;background:var(--surface2);border:1.5px solid var(--border);color:var(--purple);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 14px;font-family:var(--sans);font-size:12.5px;font-weight:700;white-space:nowrap;transition:all .15s;flex-shrink:0;}
+.btn-free-text span{font-size:13px;line-height:1}
+.btn-free-text:hover{border-color:var(--purple);background:#f5f0ff;transform:translateY(-1px)}
+.btn-free-text:disabled{opacity:.5;cursor:not-allowed;transform:none}
 
 /* ── WELCOME SCREEN ─────────────────────────────────────────── */
 .welcome{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;gap:20px;text-align:center;}

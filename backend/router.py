@@ -17,7 +17,7 @@ from export_excel import generate_excel
 from export_pdf import generate_pdf
 from parse_excel import parse_project_excel
 from urllib.parse import quote
-from llm import call_llm, parse_llm_response, expand_scope, requirement_to_actions, is_free_text_requirement
+from llm import call_llm, parse_llm_response, expand_scope, requirement_to_actions
 
 router = APIRouter()
 
@@ -174,7 +174,7 @@ async def chat(req: ChatRequest):
     state.add_history("user", user_msg)
 
     # ── Two-step flow: free-text requirement ───────────────────
-    if is_free_text_requirement(user_msg):
+    if req.free_text:
         print("=== TWO-STEP MODE ===")
 
         expanded = expand_scope(_llm, user_msg)

@@ -238,6 +238,7 @@ class CostState:
 class ChatRequest(BaseModel):
     session_id: str
     message: str
+    free_text: bool = False
 
 
 class ChatResponse(BaseModel):
