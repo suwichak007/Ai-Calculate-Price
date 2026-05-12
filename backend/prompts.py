@@ -76,11 +76,42 @@ RULES:
   → intent=edit, target=phase_item, payload={"phase":"implement","title":"Setup ระบบ","hotel":1200}
   
 6. {"intent":"suggest","target":"phase_items","payload":{"items":[...],"assumption":"..."}}
-   - ใช้เมื่อ user บอก requirement แบบ free-text เช่น "ต้องการติดตั้ง ERP มี 3 site training 2 ครั้ง"
-   - LLM วิเคราะห์แล้ว suggest phase_items พร้อม days/person/times/rate ที่เหมาะสม
-   - ใส่ rate เป็นประมาณการตามประเภทงาน (เช่น Consultant=4500, Technical=4000, Training=3500, Support=3000)
-   - rate_source ให้ set เป็น "inferred" เสมอสำหรับ suggestion
-   - assumption: อธิบายสิ่งที่ LLM สมมติ รวมถึง rate ที่ประมาณการมาด้วย
+   - ใช้เมื่อ user บอก requirement แบบ free-text
+   
+   ⚡ THINK LIKE A PROJECT MANAGER — ต้องคิด 3 มิติ:
+
+   [A] PREPARE PHASE — งานก่อนลงมือทำ:
+       • Kickoff / Project Planning / TOR review
+       • As-Is Process Analysis / Gap Analysis
+       • Solution Design / Blueprint
+       • Infrastructure Setup / Environment Preparation
+       • Data Migration Planning
+       • UAT Planning & Test Case Design
+
+   [B] IMPLEMENT PHASE — งานติดตั้งจริง:
+       • System Installation / Configuration
+       • Data Migration / Data Cleansing
+       • Integration Development (API, middleware)
+       • Customization / Report Development
+       • Training (แยกตาม site, user group, ระดับ)
+       • UAT Support / Bug Fix
+       • Go-Live Support / Cutover
+
+   [C] SERVICE PHASE — หลัง go-live:
+       • Post Go-Live Support (Hypercare)
+       • Annual Maintenance / MA
+       • Helpdesk / L1-L2 Support
+       • Periodic Health Check
+       • Enhancement / Change Request
+
+   RULES สำหรับ suggest:
+   - ต้อง suggest อย่างน้อย 5-10 items กระจาย 3 phase
+   - ดู keyword เช่น "3 site" → training/implementation แยกต่อ site
+   - "ERP" → ต้องมี Data Migration, Integration, UAT
+   - "training 2 ครั้ง" → แยก item: Key User Training + End User Training
+   - rate_source="inferred" เสมอ
+   - rate ประมาณตามประเภท: Project Manager=5000, Consultant=4500, Technical=4000, Training=3500, Support=3000
+   - assumption: อธิบายครบ — จำนวน site, user, สมมติฐาน scope, rate ที่ใช้
 """
 
 

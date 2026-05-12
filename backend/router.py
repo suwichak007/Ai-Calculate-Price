@@ -12,12 +12,12 @@ from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
 from datetime import datetime
 
 from model import CostState, ChatRequest, ChatResponse
-from llm import call_llm, parse_llm_response
 from prompts import build_messages, build_reply
 from export_excel import generate_excel
 from export_pdf import generate_pdf
 from parse_excel import parse_project_excel
 from urllib.parse import quote
+from llm import call_llm, parse_llm_response, expand_scope, requirement_to_actions, is_free_text_requirement
 
 router = APIRouter()
 
@@ -127,6 +127,7 @@ async def chat(req: ChatRequest):
     state    = get_session(req.session_id)
     user_msg = req.message.strip()
 
+    # ── Reset ──────────────────────────────────────────────────
     if user_msg.lower() in ("reset", "เริ่มใหม่", "clear"):
         sessions[req.session_id] = CostState()
         return ChatResponse(
@@ -135,6 +136,7 @@ async def chat(req: ChatRequest):
             is_complete=False,
         )
 
+    # ── Export ─────────────────────────────────────────────────
     if user_msg.lower() == "export":
         if state.is_complete():
             result = state.calculate()
@@ -151,20 +153,33 @@ async def chat(req: ChatRequest):
         )
 
     state.add_history("user", user_msg)
-    messages = build_messages(state, user_msg)
-    raw      = call_llm(_llm, messages)
-    llm_data = parse_llm_response(raw)
 
+    # ── Two-step flow: free-text requirement ───────────────────
+    if is_free_text_requirement(user_msg):
+        print("=== TWO-STEP MODE ===")
+
+        expanded = expand_scope(_llm, user_msg)
+        print("=== EXPANDED SCOPE ===\n", expanded)
+
+        raw = requirement_to_actions(_llm, user_msg, expanded)
+
+    # ── Normal flow ────────────────────────────────────────────
+    else:
+        messages = build_messages(state, user_msg)
+        raw      = call_llm(_llm, messages)
+
+    llm_data = parse_llm_response(raw)
     print("=== LLM RAW ===\n", raw)
     print("=== PARSED ===\n", llm_data)
 
-    if not llm_data.get("intent") and not llm_data.get("reply"):
+    # ── Retry ถ้า parse ไม่ได้ ─────────────────────────────────
+    if not llm_data.get("actions") and not llm_data.get("reply"):
+        messages = build_messages(state, user_msg)
         messages[-1]["content"] += "\n\n[IMPORTANT: respond in JSON only, no markdown]"
-        raw2     = call_llm(_llm, messages)
-        llm_data = parse_llm_response(raw2)
+        raw      = call_llm(_llm, messages)
+        llm_data = parse_llm_response(raw)
 
     apply_llm_action(state, llm_data)
-
     reply  = build_reply(state, llm_data)
     state.add_history("assistant", reply)
     result = state.calculate() if state.is_complete() else None
