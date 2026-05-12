@@ -38,10 +38,10 @@ ACTIONS — include ALL actions needed to fulfill the user's message:
    - One action per scalar field
    - ห้าม set fuel|hotel|allowance|flight|rental|taxi|travel_allow เป็น scalar
    - ค่าเดินทางต้องระบุต่อ item เท่านั้น ผ่าน intent=edit target=phase_item
-    - ค่าเดินทาง (hotel/fuel/allowance/flight/rental/taxi/travel_allow) ต้องระบุต่อ item เท่านั้น
-    - ถ้า user บอกค่าเดินทางโดยไม่ระบุชื่อ item ชัดเจน → actions MUST be [] (ห้าม edit ใดๆ ทั้งสิ้น) และ reply ถามกลับโดยแสดงรายชื่อ item ทั้งหมดจาก [CURRENT STATE].phases ให้ user เลือก
-    - ห้าม assume ว่า user ต้องการทุก item — ต้องให้ user ระบุเองเสมอ
-    - เฉพาะเมื่อ user พูดชื่อ item ชัดเจนในข้อความ เช่น "Setup ระบบ ค่าโรงแรม 1200" หรือตอบกลับคำถามด้วยชื่อ item → จึง edit ได้
+   - ค่าเดินทาง (hotel/fuel/allowance/flight/rental/taxi/travel_allow) ต้องระบุต่อ item เท่านั้น
+   - ถ้า user บอกค่าเดินทางโดยไม่ระบุชื่อ item ชัดเจน → actions MUST be [] (ห้าม edit ใดๆ ทั้งสิ้น) และ reply ถามกลับโดยแสดงรายชื่อ item ทั้งหมดจาก [CURRENT STATE].phases ให้ user เลือก
+   - ห้าม assume ว่า user ต้องการทุก item — ต้องให้ user ระบุเองเสมอ
+   - เฉพาะเมื่อ user พูดชื่อ item ชัดเจนในข้อความ เช่น "Setup ระบบ ค่าโรงแรม 1200" หรือตอบกลับคำถามด้วยชื่อ item → จึง edit ได้
 
 5. {"intent":"query","target":"-","payload":{}}
 
@@ -54,6 +54,14 @@ CONFIRMATION RULE:
 - ถ้า [CURRENT STATE].pending_suggestion ไม่ว่าง และ user พูดว่า "ยืนยัน" / "ok" / "ได้เลย" / "confirm"
   → ให้สร้าง add actions จาก pending_suggestion.items ทุกตัว
   → ห้าม suggest ซ้ำอีกครั้ง
+
+RATE-AFTER-SUGGEST RULE:
+- ถ้า [CURRENT STATE].pending_suggestion ไม่ว่าง และ user ระบุ rate เช่น "ใช้ 4500 ทุก item" หรือ "Consultant 4500"
+  → intent=edit ทุก item ใน pending_suggestion.items พร้อม rate ที่ user บอก
+  → rate_source="user"
+  → ห้าม suggest ซ้ำ
+- ถ้า user ระบุ rate แยกต่อ item เช่น "Kickoff 5000, Training 3500"
+  → intent=edit แยกต่อ item ตามที่ user บอก
 
 RULES:
 - Phase items are OPTIONAL — user can have 0 items in any phase, result will show 0 for that phase
@@ -74,44 +82,13 @@ RULES:
 
 - ถ้า user ระบุ item ชัดเจน เช่น "Setup ระบบ ค่าโรงแรม 1200"
   → intent=edit, target=phase_item, payload={"phase":"implement","title":"Setup ระบบ","hotel":1200}
-  
+
 6. {"intent":"suggest","target":"phase_items","payload":{"items":[...],"assumption":"..."}}
-   - ใช้เมื่อ user บอก requirement แบบ free-text
-   
-   ⚡ THINK LIKE A PROJECT MANAGER — ต้องคิด 3 มิติ:
-
-   [A] PREPARE PHASE — งานก่อนลงมือทำ:
-       • Kickoff / Project Planning / TOR review
-       • As-Is Process Analysis / Gap Analysis
-       • Solution Design / Blueprint
-       • Infrastructure Setup / Environment Preparation
-       • Data Migration Planning
-       • UAT Planning & Test Case Design
-
-   [B] IMPLEMENT PHASE — งานติดตั้งจริง:
-       • System Installation / Configuration
-       • Data Migration / Data Cleansing
-       • Integration Development (API, middleware)
-       • Customization / Report Development
-       • Training (แยกตาม site, user group, ระดับ)
-       • UAT Support / Bug Fix
-       • Go-Live Support / Cutover
-
-   [C] SERVICE PHASE — หลัง go-live:
-       • Post Go-Live Support (Hypercare)
-       • Annual Maintenance / MA
-       • Helpdesk / L1-L2 Support
-       • Periodic Health Check
-       • Enhancement / Change Request
-
-   RULES สำหรับ suggest:
-   - ต้อง suggest อย่างน้อย 5-10 items กระจาย 3 phase
-   - ดู keyword เช่น "3 site" → training/implementation แยกต่อ site
-   - "ERP" → ต้องมี Data Migration, Integration, UAT
-   - "training 2 ครั้ง" → แยก item: Key User Training + End User Training
-   - rate_source="inferred" เสมอ
-   - rate ประมาณตามประเภท: Project Manager=5000, Consultant=4500, Technical=4000, Training=3500, Support=3000
-   - assumption: อธิบายครบ — จำนวน site, user, สมมติฐาน scope, rate ที่ใช้
+   - ใช้เมื่อ user บอก requirement แบบ free-text เช่น "ต้องการติดตั้ง ERP มี 3 site"
+   - LLM วิเคราะห์แล้ว suggest phase_items พร้อม person/times/days
+   - ⛔ ห้ามใส่ rate หรือ rate_source ใน suggest items เด็ดขาด — ละเว้น rate field ทั้งหมด
+   - assumption: อธิบาย scope สมมติฐาน และแจ้งว่าจะถาม rate แยกต่างหาก
+   - หลังจาก suggest → system จะถาม rate เองอัตโนมัติ ห้าม LLM ถาม rate ใน reply
 """
 
 
@@ -135,7 +112,7 @@ def state_context(state: CostState) -> str:
         phase_summary.setdefault(p, []).append({
             "title":          item.get("title"),
             "rate":           item.get("rate"),
-            "missing_fields": missing_fields,  # ← บอก LLM ชัดๆ
+            "missing_fields": missing_fields,
         })
 
     waiting_rate = [
@@ -150,10 +127,10 @@ def state_context(state: CostState) -> str:
             "project_name":   d.get("project_name"),
             "markup_pct":     d.get("markup_pct"),
         },
-        "phases":          phase_summary,
-        "missing":         [label for _, label in missing],
-        "waiting_for_rate": waiting_rate,
-        "is_complete":     state.is_complete(),
+        "phases":             phase_summary,
+        "missing":            [label for _, label in missing],
+        "waiting_for_rate":   waiting_rate,
+        "is_complete":        state.is_complete(),
         "pending_suggestion": state.data.get("pending_suggestion"),
     }
     return (
@@ -161,8 +138,8 @@ def state_context(state: CostState) -> str:
         "\n[REMINDER]: JSON only. No Markdown."
         "\n[CRITICAL]: Do NOT copy rate from existing items. Only use rate if user stated it THIS turn."
         "\n[CRITICAL]: If waiting_for_rate is not empty and user gives a rate → intent=edit target=phase_item"
+        "\n[CRITICAL]: If pending_suggestion is not empty → NEVER add rate to suggest items. Wait for user to provide rate."
     )
-
 
 def build_messages(state: CostState, user_message: str) -> list:
     msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -176,48 +153,83 @@ def build_reply(state: CostState, llm_data: dict) -> str:
     llm_reply = llm_data.get("reply", "").strip()
 
     if "pending_suggestion" in state.data:
-        import math as _math
         suggestion = state.data["pending_suggestion"]
-        items = suggestion.get("items", [])
+        items      = suggestion.get("items", [])
         assumption = suggestion.get("assumption", "")
 
-        def _preview_cost(item):
-            person = float(item.get("person", 1) or 1)
-            times  = float(item.get("times",  1) or 1)
-            days   = float(item.get("days",   1) or 1)
-            rate   = float(item.get("rate",   0) or 0)
-            return _math.ceil(person * times * days * rate)
-
-        total_cost     = sum(_preview_cost(i) for i in items)
-        markup_pct     = float(state.data.get("markup_pct", 0) or 0)
-        total_w_markup = _math.ceil(total_cost * (1 + markup_pct / 100))
+        # ตรวจว่า items มี rate แล้วหรือยัง
+        items_with_rate    = [i for i in items if i.get("rate")]
+        items_without_rate = [i for i in items if not i.get("rate")]
 
         lines = ["📋 **วิเคราะห์ความต้องการได้ดังนี้ครับ:**\n"]
-        lines.append("| Phase | หัวเรื่อง | คน | ครั้ง | วัน | Rate | ประมาณการ |")
-        lines.append("|---|---|---:|---:|---:|---:|---:|")
-        for item in items:
-            rate = item.get("rate", 0) or 0
-            cost = _preview_cost(item)
-            rate_str = f"฿{rate:,}" if rate else "-"
-            cost_str = f"฿{cost:,}" if cost else "-"
-            lines.append(
-                f"| {item.get('phase','').capitalize()} "
-                f"| {item.get('title','')} "
-                f"| {item.get('person',1)} "
-                f"| {item.get('times',1)} "
-                f"| {item.get('days',1)} "
-                f"| {rate_str} "
-                f"| {cost_str} |"
-            )
-        lines.append(f"| | | | | | **รวมต้นทุน** | **฿{total_cost:,}** |")
-        if markup_pct:
-            lines.append(
-                f"| | | | | | **+Markup {markup_pct:.0f}%** | **฿{total_w_markup:,}** |"
-            )
-        if assumption:
-            lines.append(f"\n💡 **สมมติฐาน:** {assumption}")
-        lines.append("\n⚠️ *Rate เป็นประมาณการ — กรุณาตรวจสอบก่อนยืนยัน*")
-        lines.append("\n✅ ยืนยันใช้รายการนี้ได้เลยครับ หรือแก้ไขก่อน?")
+
+        if items_without_rate:
+            # ยังไม่มี rate → แสดง table ไม่มี rate column
+            lines.append("| Phase | หัวเรื่อง | คน | ครั้ง | วัน |")
+            lines.append("|---|---|---:|---:|---:|")
+            for item in items:
+                lines.append(
+                    f"| {item.get('phase','').capitalize()} "
+                    f"| {item.get('title','')} "
+                    f"| {item.get('person', 1)} "
+                    f"| {item.get('times', 1)} "
+                    f"| {item.get('days', 1)} |"
+                )
+            if assumption:
+                lines.append(f"\n💡 **สมมติฐาน:** {assumption}")
+
+            lines.append("\n---")
+            lines.append("✅ **Scope ดูโอเคไหมครับ?**")
+            lines.append("\nกรุณาระบุ **Rate (฿/วัน)** ที่ต้องการใช้ครับ\n")
+            lines.append("| ประเภทงาน | Rate แนะนำ |")
+            lines.append("|---|---:|")
+            lines.append("| Project Manager | ฿5,000/วัน |")
+            lines.append("| Consultant / Analyst | ฿4,500/วัน |")
+            lines.append("| Technical / Developer | ฿4,000/วัน |")
+            lines.append("| Trainer | ฿3,500/วัน |")
+            lines.append("| Support / MA | ฿3,000/วัน |")
+            lines.append("\n💬 บอกได้เลยครับ เช่น:")
+            lines.append('- **"ใช้ 4500 ทุก item"** — ใช้ rate เดียวทั้งหมด')
+            lines.append('- **"Kickoff 5000, Training 3500, Support 3000"** — แยกต่อประเภท')
+
+        else:
+            # มี rate แล้ว → แสดง table พร้อม rate และ preview cost
+            import math as _math
+
+            def _preview_cost(item):
+                person = float(item.get("person", 1) or 1)
+                times  = float(item.get("times",  1) or 1)
+                days   = float(item.get("days",   1) or 1)
+                rate   = float(item.get("rate",   0) or 0)
+                return _math.ceil(person * times * days * rate)
+
+            total_cost     = sum(_preview_cost(i) for i in items)
+            markup_pct     = float(state.data.get("markup_pct", 0) or 0)
+            total_w_markup = _math.ceil(total_cost * (1 + markup_pct / 100))
+
+            lines.append("| Phase | หัวเรื่อง | คน | ครั้ง | วัน | Rate | ประมาณการ |")
+            lines.append("|---|---|---:|---:|---:|---:|---:|")
+            for item in items:
+                rate = item.get("rate", 0) or 0
+                cost = _preview_cost(item)
+                lines.append(
+                    f"| {item.get('phase','').capitalize()} "
+                    f"| {item.get('title','')} "
+                    f"| {item.get('person', 1)} "
+                    f"| {item.get('times', 1)} "
+                    f"| {item.get('days', 1)} "
+                    f"| ฿{rate:,} "
+                    f"| ฿{cost:,} |"
+                )
+            lines.append(f"| | | | | | **รวมต้นทุน** | **฿{total_cost:,}** |")
+            if markup_pct:
+                lines.append(
+                    f"| | | | | | **+Markup {markup_pct:.0f}%** | **฿{total_w_markup:,}** |"
+                )
+            if assumption:
+                lines.append(f"\n💡 **สมมติฐาน:** {assumption}")
+            lines.append("\n✅ ยืนยันใช้รายการนี้ได้เลยครับ หรือแก้ไขก่อน?")
+
         return "\n".join(lines)
 
     # 1. items ที่ขาด field บางอย่าง
@@ -236,7 +248,7 @@ def build_reply(state: CostState, llm_data: dict) -> str:
             incomplete.append((i["title"], i["phase"], missing_fields))
 
     if incomplete:
-        title, phase, fields = incomplete[0]  # ถามทีละ item
+        title, phase, fields = incomplete[0]
         fields_str = ", ".join(fields)
         prefix = f"{llm_reply}\n\n" if llm_reply else ""
         return (
@@ -249,7 +261,7 @@ def build_reply(state: CostState, llm_data: dict) -> str:
     missing = state.missing_required()
     scalar_missing = [(k, l) for k, l in missing if not k.endswith("_items")]
     if scalar_missing:
-        key, label = scalar_missing[0]  # ถามทีละ field
+        key, label = scalar_missing[0]
         prefix = f"{llm_reply}\n\n" if llm_reply else ""
         return f"{prefix}📝 ยังขาด **{label}** ครับ — กรุณาระบุ?"
 
@@ -258,7 +270,7 @@ def build_reply(state: CostState, llm_data: dict) -> str:
         prefix = f"{llm_reply}\n\n" if llm_reply else ""
         return prefix + format_result(state.calculate())
 
-    # 4. fallback ใช้ LLM reply
+    # 4. fallback
     return llm_reply or "มีข้อมูลอะไรเพิ่มเติมไหมครับ?"
 
 
