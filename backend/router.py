@@ -70,7 +70,7 @@ def _apply_single_action(state: CostState, action: dict):
     if intent == "add" and target == "phase_item":
         items = payload if isinstance(payload, list) else [payload]
         _add_items(state, items)
-        state.data.pop("pending_suggestion", None) 
+        state.data.pop("pending_suggestion", None)
 
     elif intent == "delete" and target == "phase_item":
         phase = str(payload.get("phase", "")).lower()
@@ -83,6 +83,9 @@ def _apply_single_action(state: CostState, action: dict):
     elif intent == "edit" and target == "phase_item":
         phase = str(payload.get("phase", "")).lower()
         title = str(payload.get("title", "")).strip().lower()
+
+        # ── แก้ใน phase_items ที่ add แล้ว ──
+        edited = False
         for item in state.data.get("phase_items", []):
             if item["phase"] == phase and item["title"].strip().lower() == title:
                 for k in ("person", "times", "days", "rate", "cost",
@@ -90,6 +93,17 @@ def _apply_single_action(state: CostState, action: dict):
                           "rental", "taxi", "travel_allow"):
                     if k in payload:
                         item[k] = payload[k]
+                edited = True
+
+        # ── ถ้ายังอยู่ใน pending_suggestion → แก้ที่นั่นด้วย ──
+        if "pending_suggestion" in state.data:
+            for item in state.data["pending_suggestion"].get("items", []):
+                if item.get("phase", "").lower() == phase and item.get("title", "").strip().lower() == title:
+                    for k in ("person", "times", "days", "rate", "cost",
+                              "fuel", "hotel", "allowance", "flight",
+                              "rental", "taxi", "travel_allow"):
+                        if k in payload:
+                            item[k] = payload[k]
 
     elif intent == "set" and target == "scalar":
         items = payload if isinstance(payload, list) else [payload]
@@ -98,6 +112,11 @@ def _apply_single_action(state: CostState, action: dict):
                 state.data[s["field"]] = s["value"]
 
     elif intent == "suggest" and target == "phase_items":
+        # ── ensure times มีค่าเสมอ ──
+        for item in payload.get("items", []):
+            item.setdefault("times", 1)
+            item.setdefault("person", 1)
+            item.setdefault("days", 1)
         state.data["pending_suggestion"] = {
             "items":      payload.get("items", []),
             "assumption": payload.get("assumption", ""),

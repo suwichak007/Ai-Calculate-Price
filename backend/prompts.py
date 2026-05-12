@@ -89,6 +89,24 @@ RULES:
    - ⛔ ห้ามใส่ rate หรือ rate_source ใน suggest items เด็ดขาด — ละเว้น rate field ทั้งหมด
    - assumption: อธิบาย scope สมมติฐาน และแจ้งว่าจะถาม rate แยกต่างหาก
    - หลังจาก suggest → system จะถาม rate เองอัตโนมัติ ห้าม LLM ถาม rate ใน reply
+
+RATE-AFTER-SUGGEST RULE:
+- ถ้า [CURRENT STATE].pending_suggestion ไม่ว่าง และ user ระบุ rate ไม่ว่าจะรูปแบบใด:
+  เช่น "ใช้ 4500 ทุก item" / "เอาตามแนะนำ" / "ตามที่แนะนำ" / "ok rate นั้น" / "ได้เลย"
+  → intent=edit ทุก item ใน pending_suggestion.items พร้อม rate ที่เหมาะสม
+  → rate_source="user" ถ้า user พูดตัวเลขชัด / "inferred" ถ้า user บอกให้ใช้ rate ที่ระบบแนะนำ
+  → ห้าม add items ก่อนที่ user จะยืนยัน scope
+  → ห้าม suggest ซ้ำ
+
+- "เอาตามแนะนำ" / "ตามแนะนำ" / "ใช้ rate ที่แนะนำ"
+  → ให้ map rate ตามประเภทงานของแต่ละ item:
+     - item ที่มีคำว่า Planning/Design/Analysis/Requirement/Audit → rate=4500
+     - item ที่มีคำว่า Migration/Config/Setup/Technical/Testing/Go-Live → rate=4000
+     - item ที่มีคำว่า Training → rate=3500
+     - item ที่มีคำว่า Support/Stabilization/Optimization/Knowledge → rate=3000
+     - item อื่นๆ → rate=4000
+  → intent=edit ทุก item ใน pending_suggestion พร้อม rate ที่ map ได้
+  → rate_source="inferred"
 """
 
 
