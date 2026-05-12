@@ -183,7 +183,7 @@ async def chat(req: ChatRequest):
         raw = requirement_to_actions(_llm, user_msg, expanded)
 
     # ── Normal flow ────────────────────────────────────────────
-    else:
+    else: 
         messages = build_messages(state, user_msg)
         raw      = call_llm(_llm, messages)
 
